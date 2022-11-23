@@ -187,30 +187,30 @@ class SDSDataBaseAnalyzer(Analyzer):
                 # complex. For now, we keep it simple.
                 DATA[dataset].append(tmp[i:j])
         
-            # Cut out desired time range
-            self._update_time(stime, etime)
-            h0 = self.stime.hour
-            h1 = self.etime.hour+1
-            if h1 == 0 or h1>23:
-                h1 = 24
-            
+        # Cut out desired time range
+        self._update_time(stime, etime)
+        h0 = self.stime.hour
+        h1 = self.etime.hour+1
+        if h1 == 0 or h1>23:
+            h1 = 24
+        
 
-            for dataset, data in DATA.items():
-                data = np.vstack(data)
-                logger.debug("Final shape of %s is %s" % (dataset, data.shape))
-                # If starttime < endtime indices correspond to 
-                # hours and 1 time frame lies within 1 row 
-                if h0 < h1:
-                    DATA[dataset] = data[:,h0:h1]
-                # if timerange crosses midnight, data of one
-                # frame lies in 2 consecutive rows.
-                else:
-                    DATA[dataset] = np.hstack([data[0:-1,h0:],
-                                    data[1:, :h1]])
-            if "amplitudes" in DATA:
-                self.amps = DATA["amplitudes"]
-            if "psds" in DATA:
-                self.psds = DATA["psds"]
-                self.freqax = freqax
-                DATA["frequency_axis"] = freqax
-            return DATA
+        for dataset, data in DATA.items():
+            data = np.vstack(data)
+            logger.debug("Final shape of %s is %s" % (dataset, data.shape))
+            # If starttime < endtime indices correspond to 
+            # hours and 1 time frame lies within 1 row 
+            if h0 < h1:
+                DATA[dataset] = data[:,h0:h1]
+            # if timerange crosses midnight, data of one
+            # frame lies in 2 consecutive rows.
+            else:
+                DATA[dataset] = np.hstack([data[0:-1,h0:],
+                                data[1:, :h1]])
+        if "amplitudes" in DATA:
+            self.amps = DATA["amplitudes"]
+        if "psds" in DATA:
+            self.psds = DATA["psds"]
+            self.freqax = freqax
+            DATA["frequency_axis"] = freqax
+        return DATA

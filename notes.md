@@ -22,3 +22,10 @@ packages=["data_quality_control"],  #
 I suspect, find_packages did not work because the directory
 with the source files `src/data_quality_control` has a different
 name than the name of the package in the setup (`dataqc`).
+
+
+# Rediscovery
+- module `processing` is deprecated
+- possibly, the `Analyzer` class from module `analysis` should go to `base` because
+    because it is parent class to `sds_db.SDSDataBaseAnalyzer`. Then `analysis can be deprecated as well
+- Analyzer in sds_db can extract time ranges, including those passing midnight

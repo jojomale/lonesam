@@ -21,9 +21,9 @@ nperseg = 2048
 winlen_in_s = 3600
 proclen = 24*3600
 
-outdir = '/home/lehr/sds/processed/'
+outdir = '/home/lehr/Projects/data_quality_control/processed/'
 
-sds_root = os.path.abspath('/home/lehr/sds/data/')
+sds_root = os.path.abspath('/sds/')
 inventory_routing_type = "eida-routing"
 
 

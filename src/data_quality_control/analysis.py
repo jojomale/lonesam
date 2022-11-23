@@ -19,7 +19,7 @@ import h5py
 from . import processing, base, util
 
 import logging
-logger = logging.getLogger('processing')
+logger = logging.getLogger('analysis')
 logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)  # set level
@@ -163,6 +163,12 @@ class Analyzer():
             
     def get_data(self, 
                  stime=None, etime=None):
+
+        """
+        Currently, stime, etime doesn't seem to do anything
+        usefull. In particular, it does not select a
+        subset of hours!!!
+        """
         
         DATA = base.BaseProcessedData()
         for fname in self.files:

@@ -1052,7 +1052,8 @@ class BaseProcessedData():
         fig.show()
 
 
-    def plot_amplitudes(self, tax=None, ax=None):
+    def plot_amplitudes(self, tax=None, ax=None, 
+        labelinc=1):
         """
         Plot amplitude matrix using matplotlib.
 
@@ -1076,12 +1077,13 @@ class BaseProcessedData():
 
         dtflag, dtinc = util.choose_datetime_inc(self.proclen_seconds)
 
+
         if tax is None:
             tax = np.arange(self.startdate, 
                             self.enddate+self.proclen_seconds, 
                             dtinc,
                             dtype='datetime64[{}]'.format(dtflag))
-        yticks = np.arange(len(tax))
+        yticks = np.arange(0, len(tax), labelinc)
 
         im = ax.imshow(self.amplitudes)
         ax.set_title("Amplitude data matrix");
