@@ -14,6 +14,9 @@ from obspy.core import UTCDateTime as UTC
 
 import plotly.graph_objects as go
 
+import matplotlib.pyplot as plt
+plt.style.use('tableau-colorblind10')
+
 import h5py
 
 from . import processing, base, util
@@ -189,20 +192,16 @@ class Analyzer():
         if isinstance(starttimes, (list, np.ndarray, tuple)):
             stime = min(starttimes)
             etime = max(starttimes)
+            self.timeax_psd = [np.datetime64(t) for t in starttimes]
         elif isinstance(starttimes, UTC) and isinstance(endtime, UTC):
             etime = endtime
             stime = starttimes
             starttimes = [stime, etime]
+            self.timeax_psd = None
         else:
-            raise UserWarning("somethings wrong with the times.")
-
-        # if len(times) == 2:
-        #     stime, etime = times
-        # elif len(times) > 2:
-        #     stime = min(times)
-        #     etime = max(times)
-        # else:
-        #     raise RuntimeError("Need at least start and endtime")
+            raise UserWarning("Need to give either list of times or" + 
+                            "start and endtime of time range. " + 
+                            "Times must be obspy.UTCDateTimes.")
 
         self.set_time(stime, etime)
         self.files = self.get_filenames()
@@ -220,6 +219,12 @@ class Analyzer():
         self.proclen_seconds = DATA.proclen_seconds
         self.winlen_seconds = DATA.seconds_per_window
         self.nwin = self.amps.shape[1]
+        
+        if not self.timeax_psd:
+            k, inc = util.choose_datetime_inc(self.winlen_seconds)
+            self.timeax_psd = np.arange(stime, etime, inc, dtype="datetime64[{}]".format(k))
+
+
         return DATA
 
 
@@ -244,9 +249,9 @@ class Analyzer():
         return inds_amp, inds_psd
 
 
-    def _set_data_slice(self, DATA, i, j):
-        self.psds = DATA.psds.reshape((-1, DATA.psds.shape[-1]))[i:j, :]
-        self.amps = DATA.amplitudes.ravel()[i:j].reshape
+    # def _set_data_slice(self, DATA, i, j):
+    #     self.psds = DATA.psds.reshape((-1, DATA.psds.shape[-1]))[i:j, :]
+    #     self.amps = DATA.amplitudes.ravel()[i:j].reshape
 
 
     def infostr(self):
@@ -254,6 +259,24 @@ class Analyzer():
             "{} - {}<br>".format(self.sdate, self.edate) +
             "{} - {}".format(self.stime, self.etime))
         return t
+
+
+    def plot_spectrogram(self, ax=None, **kwargs):
+        if ax is None:
+            fig, ax = plt.subplots(1,1)
+        else:
+            fig = ax.get_figure()
+        
+        pmesh = ax.pcolormesh(self.timeax_psd, self.freqax, 
+                            np.log10(self.psds.T)*10, 
+                            shading="auto",
+                            **kwargs)
+        fig.autofmt_xdate()
+        plt.colorbar(pmesh, ax=ax, 
+                    label=r'power spectral density, dB($\frac{m^2}{s^2\cdot Hz}$)')        
+        ax.set_xlabel("time")
+        ax.set_ylabel("frequency, Hz")
+        return fig
 
 
     def plot3d(self):
