@@ -35,18 +35,12 @@ import plotly.graph_objects as go
 
 import h5py
 
-from . import util
+from . import util, dqclogging
 
 import logging
-logger = logging.getLogger('base')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)  # set level
-cformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                            datefmt='%y-%m-%d %H:%M:%S')
-ch.setFormatter(cformatter)
-if not logger.hasHandlers():
-    logger.addHandler(ch)
+# Create the global logger
+logger = dqclogging.create_logger()
+module_logger = logging.getLogger(logger.name+'.base')
 
 
 STATIONCODE = "{network}.{station}.{location}.{channel}"
@@ -141,6 +135,9 @@ class GenericProcessor():
         self.client = dataclient
         self.invclient = invclient
         self.fileunit = fileunit
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"GenericProcessor")
+        self.logger.setLevel(logging.DEBUG)
 
         if preprocessing is None:
             preprocessing = util.process_stream
@@ -274,7 +271,7 @@ class GenericProcessor():
 
 
         walltime = timedelta(seconds=time.time()-T0)
-        logger.info("Finished. Took %s h" % walltime)
+        self.logger.info("Finished. Took %s h" % walltime)
 
 
     def create_ofile(self, nscprocessor, starttime):
@@ -293,8 +290,8 @@ class GenericProcessor():
         n_proclen = int((fetime + self.proc_params.proclen_seconds - fstime) / 
                         self.proc_params.proclen_seconds)
 
-        logger.info("Creating output file %s" % ofilename)
-        logger.info("Starttime=%s, endtime=%s, n_proclen=%s" %
+        self.logger.info("Creating output file %s" % ofilename)
+        self.logger.info("Starttime=%s, endtime=%s, n_proclen=%s" %
                     (fstime, fetime, n_proclen))
 
         f = h5py.File(ofilename, "w")
@@ -489,6 +486,10 @@ class NSCProcessor():
         self.dataclient = dataclient
         self.invclient = invclient
 
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"NSCProcessor")
+        self.logger.setLevel(logging.DEBUG)
+
         if "procparams" in procparams:
             self.processing_params = procparams['procparams']
             self.processing_params.update(**procparams)
@@ -575,12 +576,12 @@ class NSCProcessor():
         inv = self.invclient.get_stations(
             starttime=starttime, endtime=endtime, level='response',
             **self.nsc_as_dict())
-        logger.info("Processing %s" % self.stationcode)
+        self.logger.info("Processing %s" % self.stationcode)
         while starttime <= self.endtime - self.processing_params.overlap:
             endtime = (starttime + 
                         self.processing_params.proclen_seconds + 
                         2*self.processing_params.overlap)
-            logger.debug("%s - %s" % (starttime, endtime))
+            self.logger.debug("%s - %s" % (starttime, endtime))
             
             st = self.dataclient.get_waveforms(starttime=starttime, endtime=endtime, 
                                     **self.nsc_as_dict())
@@ -588,8 +589,8 @@ class NSCProcessor():
                 tr = preprocessing(st, inv, starttime, endtime)
             # No data in trace:
             except IndexError:
-                # logger.debug("No data for %s" % UTC((starttime + overlap).date))
-                logger.info("No data for %s" % starttime)
+                # self.logger.debug("No data for %s" % UTC((starttime + overlap).date))
+                self.logger.info("No data for %s" % starttime)
                 starttime = starttime + self.processing_params.proclen_seconds
                 
                 # Shape of output is determined by seismic data properties like
@@ -678,6 +679,9 @@ class BaseProcessedData():
         self.enddate = enddate
         self.proclen_seconds = proclen_seconds
         
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"BaseProcessedData")
+        self.logger.setLevel(logging.DEBUG)
 
     def get_nslc(self):
         """
@@ -716,10 +720,10 @@ class BaseProcessedData():
                   self.enddate.date)
         fname = os.path.join(outdir, fname)
         if not self.has_data():
-            logger.warning("No data for file %s. Skipping" % fname)
+            self.logger.warning("No data for file %s. Skipping" % fname)
             return
 
-        logger.info("Writing data to %s" % fname)
+        self.logger.info("Writing data to %s" % fname)
 
         with h5py.File(fname, 'w') as fout:
             fout.create_dataset('amplitudes', data=self.amplitudes)
@@ -758,7 +762,7 @@ class BaseProcessedData():
         Overrides existing data in file.
         """
         if not self.has_data():
-            logger.warn("output has no data to insert")
+            self.logger.warn("output has no data to insert")
             return
             #raise RuntimeWarning("output has no data to insert")
 
@@ -768,7 +772,7 @@ class BaseProcessedData():
         # Or should we cut of the extending part on our own?
         if fstime > self.startdate:
             msg = "Targeted file starts after data. Cannot insert."
-            logger.error(msg)
+            self.logger.error(msg)
             raise ValueError(msg)
 
         i = ((self.startdate - fstime) / 
@@ -777,15 +781,15 @@ class BaseProcessedData():
                         self.proclen_seconds)
        
         i, j = int(i), int(j)
-        logger.debug("starttime: %s" % self.startdate)
-        logger.debug("endtime: %s" % self.enddate)
-        logger.debug("Amplitude matrix shape: %s" % 
+        self.logger.debug("starttime: %s" % self.startdate)
+        self.logger.debug("endtime: %s" % self.enddate)
+        self.logger.debug("Amplitude matrix shape: %s" % 
             ", ".join([str(s) for s in self.amplitudes.shape]))
-        logger.debug("Target shape: (%s)" % 
+        self.logger.debug("Target shape: (%s)" % 
             ", ".join([str(s) for s in fout["amplitudes"][i:j,:].shape]))
-        logger.debug("Total shape of target %s" %
+        self.logger.debug("Total shape of target %s" %
             ", ".join([str(s) for s in fout["amplitudes"][:].shape]))
-        logger.debug("Targeted index range %s:%s" % (i,j))
+        self.logger.debug("Targeted index range %s:%s" % (i,j))
 
         fout["amplitudes"][i:j,:] = self.amplitudes
         fout["psds"][i:j,:,:] = self.psds
@@ -814,14 +818,14 @@ class BaseProcessedData():
         if amplitudes.shape != psds.shape[:-1]:
             msg = ("Added data has inconsistent shapes!"+
                 "amplitudes: %s; psds %s" % (amplitudes.shape, psds.shape))
-            logger.warn(msg)
+            self.logger.warn(msg)
             raise RuntimeWarning(msg)
         if psds.shape[-1] != freqs.size:
             msg = ("Added frequencies and psds have inconsisent size!" +
                     "psds: {}".format(psds.shape[-1] + 
                     ", freqs: {}".format(freqs.size))
                     )
-            logger.warn(msg)       
+            self.logger.warn(msg)       
             raise RuntimeWarning(msg)
 
         # check if proclen fits
@@ -833,7 +837,7 @@ class BaseProcessedData():
                 "{:g} s in added data ".format(inp_proclen) +
                 "vs {:g} s allocated".format(self.proclen_seconds)
             )
-            logger.warn(msg)
+            self.logger.warn(msg)
             raise RuntimeWarning(msg)
 
         self.amplitudes = amplitudes
@@ -1008,7 +1012,7 @@ class BaseProcessedData():
             psds_shp[1:] == new.psds.shape[1:]):
             return amps_shp, psds_shp
         else:
-            logger.error("Data in files have inconsistent shapes!")
+            self.logger.error("Data in files have inconsistent shapes!")
             raise IOError("Data in files have inconsistent shapes!")
             #return False, False
 
@@ -1019,7 +1023,7 @@ class BaseProcessedData():
         Throws IOError if not.
         """
         if not np.all(np.isclose(self.frequency_axis, new.frequency_axis)):
-            logger.error("Frequency axis are different!")
+            self.logger.error("Frequency axis are different!")
             raise IOError("Frequency axis are different!")
         else:
             return True
@@ -1031,7 +1035,7 @@ class BaseProcessedData():
         Throws IOError if not.
         """
         if self.stationcode != new.stationcode:
-            logger.error("Station codes are different! " +
+            self.logger.error("Station codes are different! " +
                 "Cannot extend existing data.")
             raise IOError("Station codes are different! " +
                 "Cannot extend existing data.")

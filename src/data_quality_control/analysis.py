@@ -19,18 +19,13 @@ plt.style.use('tableau-colorblind10')
 
 import h5py
 
-from . import processing, base, util
+from . import processing, base, util, dqclogging
 
 import logging
-logger = logging.getLogger('analysis')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)  # set level
-cformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                            datefmt='%y-%m-%d %H:%M:%S')
-ch.setFormatter(cformatter)
-if not logger.hasHandlers():
-    logger.addHandler(ch)
+# Create the global logger
+logger = dqclogging.create_logger()
+module_logger = logging.getLogger(logger.name+'.analysis')
+
 
 
 class Analyzer():
@@ -51,7 +46,9 @@ class Analyzer():
         self.fmtstr = (fmtstr_base.format(
                         outdir=self.datadir, **self.nslc_as_dict()) + 
                         sep + fmtstr_time)
-        
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"Analyzer")
+        self.logger.setLevel(logging.DEBUG)
         
         #self.files = self.get_filenames()
         

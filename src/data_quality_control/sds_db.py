@@ -8,20 +8,14 @@ from obspy.core import UTCDateTime as UTC
 from obspy.clients.filesystem.sds import Client
 from obspy.clients.fdsn import RoutingClient
 
-from . import base
+from . import base, dqclogging
 from .analysis import Analyzer
 
 import logging
-logger = logging.getLogger('sds_db')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)  # set level
-cformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                            datefmt='%y-%m-%d %H:%M:%S')
-ch.setFormatter(cformatter)
-if not logger.hasHandlers():
-    logger.addHandler(ch)
 
+# Create the global logger
+logger = dqclogging.create_logger()
+module_logger = logging.getLogger(logger.name+'.sds_db')
 
 class SDSProcessor(base.GenericProcessor):
     def __init__(self, network, station, channel,  
@@ -39,7 +33,9 @@ class SDSProcessor(base.GenericProcessor):
                 dataclient, invclient, 
                 outdir=outdir, preprocessing=preprocessing, 
                 fileunit=fileunit, **procparams)
-
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"SDSProcessor")
+        self.logger.setLevel(logging.DEBUG)
 
 
     def expand_nslc(self, starttime, endtime):

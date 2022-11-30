@@ -13,15 +13,11 @@ from obspy.core import UTCDateTime as UTC
 from obspy.signal.filter import bandpass
 
 import logging
-logger = logging.getLogger('util')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)  # set level
-cformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                            datefmt='%y-%m-%d %H:%M:%S')
-ch.setFormatter(cformatter)
-if not logger.hasHandlers():
-    logger.addHandler(ch)
+
+from . import dqclogging
+# Create the global logger
+logger = dqclogging.create_logger()
+module_logger = logging.getLogger(logger.name+'.util')
 
 
 def _create_hdf5_attribs(f, stationcode, starttime, endtime, 
@@ -107,7 +103,7 @@ def process_stream(st, inv, starttime, endtime):
     st.trim(starttime, endtime, pad=True, fill_value=np.nan, 
             nearest_sample=False)
     if len(st) > 1:
-        logger.warning("More than 1 trace in stream %s!"+ 
+        module_logger.warning("More than 1 trace in stream %s!"+ 
             " Using first trace only" % st)
     tr = st[0]
     
@@ -261,7 +257,7 @@ def get_amplitude(tr, starttime, fmin, fmax, overlap,
     sr = tr.stats.sampling_rate
     
     if np.any(np.isnan(tr.data)):
-        logger.info('Found nans in %s' % tr)
+        module_logger.info('Found nans in %s' % tr)
         taper_samples = int(overlap*sr)
         
         data, taper_samples = get_overlapping_tapered_frames(tr, 
@@ -323,15 +319,15 @@ def iter_years(startdate, enddate):
         # Check if end-of-year date is larger than acual enddate
         if _enddate > enddate: 
             _enddate = enddate
-            logger.debug("Reset enddate to %s" % _enddate)
+            module_logger.debug("Reset enddate to %s" % _enddate)
         # Process 1 year (or less)
-        logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
+        module_logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
         yield _startdate, _enddate
 
         _startdate = UTC("{:d}-01-01".format(_startdate.year+1))
         _enddate = UTC("{:d}-12-31".format(_startdate.year))
-        # logger.debug("New _startdate = %s" % _startdate)
-        # logger.debug("New _enddate = %s" % _enddate)
+        # module_logger.debug("New _startdate = %s" % _startdate)
+        # module_logger.debug("New _enddate = %s" % _enddate)
 
 
 def get_end_of_month(stime):
@@ -410,9 +406,9 @@ def iter_month(startdate, enddate):
         # Check if end-of-year date is larger than acual enddate
         if _enddate > enddate: 
             _enddate = enddate
-            logger.debug("Reset enddate to %s" % _enddate)
+            module_logger.debug("Reset enddate to %s" % _enddate)
         # Process 1 year (or less)
-        logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
+        module_logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
         yield _startdate, _enddate
 
         _startdate = next_month(_startdate) 
@@ -449,9 +445,9 @@ def iter_timeinc(startdate, enddate, inc, timelevel):
         # Check if end-of-year date is larger than acual enddate
         if _enddate > enddate: 
             _enddate = enddate
-            logger.debug("Reset enddate to %s" % _enddate)
+            module_logger.debug("Reset enddate to %s" % _enddate)
         # Process 1 year (or less)
-        logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
+        module_logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
         yield _startdate, _enddate
 
         _startdate = _startdate + inc
