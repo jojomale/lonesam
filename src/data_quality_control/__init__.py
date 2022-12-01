@@ -119,4 +119,18 @@ Documentation
 HTML-Documentation in SVN-repository:
 
 station_quality_control/trunk/data_quality_control/docs/build/html/index.html
+
+
+Known issues during processing
+==================================
+Change of sampling rate
+-------------------------
+The sampling rate of a station may change over the years. 
+If that happens the mseed-file in the
+SDS contains multiple traces with different sampling rates. 
+These can not be merged without
+resampling to a common rate. We choose to resample the stream to the highest rate. 
+This happens in the routing `util.process_streams()` which calls 
+`util.merge_different_samplingrates`.
+
 """

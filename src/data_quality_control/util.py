@@ -99,7 +99,8 @@ def process_stream(st, inv, starttime, endtime):
 
     """
     st.remove_sensitivity(inv)
-    st.merge(fill_value=np.nan)
+    #st.merge(fill_value=np.nan)
+    merge_different_samplingrates(st)
     st.trim(starttime, endtime, pad=True, fill_value=np.nan, 
             nearest_sample=False)
     if len(st) > 1:
@@ -111,6 +112,20 @@ def process_stream(st, inv, starttime, endtime):
     tr.data = tr.data - np.nanmean(tr.data)
     return tr
 
+
+def merge_different_samplingrates(st):
+    """
+    Merge stream, fill gaps with nans.
+    If traces have different sampling rates, resample to highest.
+    """
+    try:
+        st.merge(fill_value=np.nan)
+    except Exception:
+        sr = max([tr.stats.sampling_rate for tr in st])
+        module_logger.info("Found different sampling rates. " + 
+                    "Resampling to highest ({:g} Hz).".format(sr))
+        st.resample(sr)
+        st.merge(fill_value=np.nan)
 
 
 def get_adjacent_frames(tr, starttime, nf, winlen_samples):

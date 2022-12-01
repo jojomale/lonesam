@@ -1,0 +1,5 @@
+{
+    "svn.delete.ignoredRulesForDeletedFiles": [
+        "testing/dqc_processing_test.log"
+    ]
+}
