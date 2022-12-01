@@ -122,7 +122,7 @@ def merge_different_samplingrates(st):
         st.merge(fill_value=np.nan)
     except Exception:
         sr = max([tr.stats.sampling_rate for tr in st])
-        module_logger.info("Found different sampling rates. " + 
+        module_logger.warning("Found different sampling rates. " + 
                     "Resampling to highest ({:g} Hz).".format(sr))
         st.resample(sr)
         st.merge(fill_value=np.nan)
