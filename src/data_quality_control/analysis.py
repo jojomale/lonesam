@@ -31,7 +31,8 @@ module_logger = logging.getLogger(logger.name+'.analysis')
 class Analyzer():
     def __init__(self, 
                  datadir, stationcode, fileunit="year",
-                stime="00:00", etime="23:59:59:999999"):
+                #stime="00:00", etime="23:59:59:999999"
+                ):
         #self.sdate = UTC(sdate).date
         #self.edate = UTC(edate).date
         #self._update_time(stime, etime)
@@ -62,7 +63,37 @@ class Analyzer():
                 Path(self.datadir).glob(self.stationcode+"*.hdf5")]
 
 
+    def get_available_timerange(self):
+        """
+        Get list of available files and read startdate of first 
+        and enddate of last file in sorted list.
+        """
+        flist = self.get_available_datafiles()
+        flist.sort()
+        startdate = base.BaseProcessedData().from_file(flist[0]).startdate
+        enddate = base.BaseProcessedData().from_file(flist[-1]).enddate
+        return startdate, enddate
+
+
+    def _get_filenames(self):
+        """
+        Get filenames within set time range.
+
+        `self.starttime` and `self.endtime` must be set!
+        """
         
+        logger.info("Looking for data file %s" % self.fmtstr)
+        files = []
+        
+        for starttime, endtime in self.iter_time(self.starttime, self.endtime):
+            files.append(self.fmtstr.format(year=starttime.year, 
+                                        month=starttime.month, 
+                                        day=starttime.day,
+                                        hour=starttime.hour))
+   
+        return sorted(files)
+        
+
     def nslc_as_dict(self):
         d = {k: v for k, v in zip(["network", "station", "location", "channel"], 
                                   self.stationcode.split("."))}
@@ -91,56 +122,24 @@ class Analyzer():
         self.endtime = etime
 
 
-    def get_all_data(self, sdate=None, edate=None, 
-                 datadir=None, stationcode=None):
-        if sdate is not None:
-            self.sdate = UTC(sdate)
-        if edate is not None:
-            self.edate = UTC(sdate)
-        if datadir is not None:
-            self.datadir = datadir
-        if stationcode is not None:
-            self.stationcode = stationcode
-        self._update_datetime()
-            
-        files = sorted(self.get_filenames())
-        if len(files) == 0:
-            logger.warn("No files for %s in %s between %s and %s" %
-                        (self.stationcode, self.datadir, 
-                        self.sdate, self.edate))
-            return
-        
-        # If we found files, a
-        data = processing.BaseProcessedData()
-        for file in files:
-            data.extend_from_file(file)
-        self.data = data
-            
-        
-            
-    def get_filenames(self):
-        
-        
-        logger.info("Looking for data file %s" % self.fmtstr)
-        files = []
-        
-        
-        for starttime, endtime in self.iter_time(self.starttime, self.endtime):
-            files.append(self.fmtstr.format(year=starttime.year, 
-                                        month=starttime.month, 
-                                        day=starttime.day,
-                                        hour=starttime.hour))
-   
-        return sorted(files)
+    def get_all_available_data(self):
+        startdate, enddate = self.get_available_timerange()
+        self.get_data(startdate, enddate)
 
 
-    
-    def iter_files(self):
+    def _iter_open_hdf5(self, fnamelist=None):
         """
         Generator that returns open h5py.File object for
-        each filename in self.files.
+        each filename in fnamelist. Closes file before
+        yielding next file and before error is raised.
+
+        If `fnamelist=None`, we use `self.files`. Causes
+        error if not set.
         """
-        for fname in self.files:
+        if fnamelist is None:
+            fnamelist = self.files
+
+        for fname in fnamelist:
             logger.debug("Opening file %s" % fname)
             try:
                 val = h5py.File(fname, 'r')
@@ -150,11 +149,11 @@ class Analyzer():
                 val.close()
             # Always close file before we 
             # present the error
-            except:
+            except Exception as e:
                 val.close()
-                logger.error("Error while opening file %s" % fname)
+                logger.exception("Error while opening file %s\n" % fname + e)
                 raise
-                
+
             
     def get_data(self, starttimes, endtime=None):
         """
@@ -201,7 +200,7 @@ class Analyzer():
                             "Times must be obspy.UTCDateTimes.")
 
         self.set_time(stime, etime)
-        self.files = self.get_filenames()
+        self.files = self._get_filenames()
 
         DATA = base.BaseProcessedData()
         for fname in self.files:
@@ -220,7 +219,6 @@ class Analyzer():
         if not self.timeax_psd:
             k, inc = util.choose_datetime_inc(self.winlen_seconds)
             self.timeax_psd = np.arange(stime, etime, inc, dtype="datetime64[{}]".format(k))
-
 
         return DATA
 
@@ -371,16 +369,6 @@ class Analyzer():
 
 
     def _get_time_axis(self):
-        # sdate = np.datetime64(self.sdate, 'h')
-        # edate = np.datetime64(self.edate, 'h') + np.timedelta64(1, "D")
-        # dateax = np.arange(sdate, edate, np.timedelta64(1, "D"), 
-        #             dtype='datetime64')
-
-        # dur = self.etime.hour - self.stime.hour
-        # if dur <= 0:
-        #     dur = dur + 24
-
-        # timeax = np.arange(dur+1, dtype=np.timedelta64) + self.stime.hour
         
         dtflag, dtinc = util.choose_datetime_inc(self.proclen_seconds)
 
