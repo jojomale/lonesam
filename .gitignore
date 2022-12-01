@@ -3,7 +3,8 @@ docs/build/html/
 docs/build/html/*
 docs/build/html/.*
 jupyter/
-*.ipynb
+*Untitled*.ipynb
+notebooks/johannas_chaos/
 testing/
 run_eida*
 gitsvn.sh
