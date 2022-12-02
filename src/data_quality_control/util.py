@@ -248,6 +248,7 @@ def get_overlapping_tapered_frames(tr, starttime, nf, winlen_samples,
 
 
 
+
 def get_amplitude(tr, starttime, fmin, fmax, overlap, 
         winlen_samples, nf, percentile=75):
     """
@@ -314,6 +315,21 @@ def get_amplitude(tr, starttime, fmin, fmax, overlap,
     return prctl
 
 
+
+def _get_data_indices(DATA, times):
+        # Amplitude indices: we only select whole processing units (e.g. 1 day)
+        # Get indices of data slices
+        i = int((times[0] - DATA.startdate) / 
+                     DATA.proclen_seconds)
+        j = int((times[-1] + DATA.proclen_seconds - DATA.startdate) / 
+                         DATA.proclen_seconds)
+        inds_amp = slice(i, j)
+
+        # PSD indices
+        inds_psd = [int((t - DATA.startdate) / DATA.seconds_per_window )
+                for t in times] 
+
+        return inds_amp, inds_psd
 
 
 def iter_years(startdate, enddate):

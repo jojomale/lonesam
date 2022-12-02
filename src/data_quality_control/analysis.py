@@ -70,26 +70,29 @@ class Analyzer():
         """
         flist = self.get_available_datafiles()
         flist.sort()
-        startdate = base.BaseProcessedData().from_file(flist[0]).startdate
-        enddate = base.BaseProcessedData().from_file(flist[-1]).enddate
+        data = base.BaseProcessedData().from_file(flist[0])
+        data.trim_nan()
+        startdate = data.startdate
+
+        data = base.BaseProcessedData().from_file(flist[-1])
+        data.trim_nan()
+        enddate = data.enddate
         return startdate, enddate
 
 
-    def _get_filenames(self):
+    def _get_filenames(self, starttime, endtime):
         """
-        Get filenames within set time range.
-
-        `self.starttime` and `self.endtime` must be set!
+        Get filenames within time range.
         """
         
         logger.info("Looking for data file %s" % self.fmtstr)
         files = []
         
-        for starttime, endtime in self.iter_time(self.starttime, self.endtime):
-            files.append(self.fmtstr.format(year=starttime.year, 
-                                        month=starttime.month, 
-                                        day=starttime.day,
-                                        hour=starttime.hour))
+        for _starttime, _endtime in self.iter_time(starttime, endtime):
+            files.append(self.fmtstr.format(year=_starttime.year, 
+                                        month=_starttime.month, 
+                                        day=_starttime.day,
+                                        hour=_starttime.hour))
    
         return sorted(files)
         
@@ -185,63 +188,138 @@ class Analyzer():
             only required if `starttimes` is UTCDateTime. End of time
             range for data selection.
         """
-        if isinstance(starttimes, (list, np.ndarray, tuple)):
-            stime = min(starttimes)
-            etime = max(starttimes)
-            self.timeax_psd = [np.datetime64(t) for t in starttimes]
-        elif isinstance(starttimes, UTC) and isinstance(endtime, UTC):
-            etime = endtime
-            stime = starttimes
-            starttimes = [stime, etime]
-            self.timeax_psd = None
+
+        
+        if isinstance(starttimes, UTC):
+            if not isinstance(endtime, UTC):
+                endtime = UTC()
+            starttimes = [starttimes, endtime]
+            timerange = True
+        elif isinstance(starttimes, (list, np.ndarray, tuple)):
+            timerange = False
         else:
             raise UserWarning("Need to give either list of times or" + 
                             "start and endtime of time range. " + 
                             "Times must be obspy.UTCDateTimes.")
 
-        self.set_time(stime, etime)
-        self.files = self._get_filenames()
+        starttimes = sorted(starttimes)
+        etime = starttimes[-1]
+        stime = starttimes[0]
+            
+
+        # if isinstance(starttimes, (list, np.ndarray, tuple)):
+        #     stime = min(starttimes)
+        #     etime = max(starttimes)
+        #     #self.timeax_psd = [np.datetime64(t) for t in starttimes]
+        # elif isinstance(starttimes, UTC) and isinstance(endtime, UTC):
+        #     etime = endtime
+        #     stime = starttimes
+        #     starttimes = [stime, etime]
+        #     #self.timeax_psd = None
+        # else:
+        #     raise UserWarning("Need to give either list of times or" + 
+        #                     "start and endtime of time range. " + 
+        #                     "Times must be obspy.UTCDateTimes.")
+
+        #self.set_time(stime, etime)
+        self.files = self._get_filenames(stime, etime)
 
         DATA = base.BaseProcessedData()
+        #self.logger.debug("{} - {}".format(str(DATA.startdate), str(DATA.enddate)))
         for fname in self.files:
             logger.debug("Loading %s" % fname)
             DATA.extend_from_file(fname)
-        
-        inds_amp, inds_psd = self._get_data_indices(DATA, starttimes)
 
+        ## I don't know why but Nans are not always trimmed correctly, leading
+        ## to false dates in DATA.
+        DATA.trim_nan()
+        self.logger.debug("Available time range in data: {}-{}".format(
+            DATA.startdate, DATA.enddate
+        ))
+        
+        ## Reduce start/end time to those in DATA if out of available range
+        if stime > DATA.enddate + DATA.proclen_seconds:
+            msg = ("Requested time range starts after data is available." + 
+                        "Data available from {} - {}").format(
+                            *self.get_available_timerange())
+            self.logger.exception(msg)
+            raise RuntimeError(msg)
+
+        if etime <= DATA.startdate:
+            msg = ("Requested time range ends before data is available." + 
+                            "Data available from {} - {}").format(
+                            *self.get_available_timerange())
+            self.logger.exception(msg)
+            raise RuntimeError(msg)
+        
+        if  stime < DATA.startdate:      
+            stime = DATA.startdate
+            self.logger.debug("Adjusting starttime to available: {}".format(stime))
+
+        if DATA.enddate + DATA.proclen_seconds < etime:
+            # if DATA.enddate + DATA.proclen_seconds <= stime:
+            #     msg = ("Requested time range starts after available data." + 
+            #                     "Data ends at {}").format(DATA.enddate)
+            #     self.logger.exception(msg)
+            #     raise RuntimeError(msg)
+                
+            # else:
+            etime = DATA.enddate + DATA.proclen_seconds
+            self.logger.debug("Adjusting endtime to available: {}".format(etime))
+        self.set_time(stime, etime)
+
+
+        inds_amp, inds_psd, timeax_psd = self._get_data_indices(DATA, starttimes, timerange)
+        self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
+        self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
+        
         self.amps = DATA.amplitudes[inds_amp,:]
         self.psds = DATA.psds.reshape((-1, DATA.psds.shape[-1]))[inds_psd]
         self.freqax = DATA.frequency_axis
         self.proclen_seconds = DATA.proclen_seconds
         self.winlen_seconds = DATA.seconds_per_window
         self.nwin = self.amps.shape[1]
-        
-        if not self.timeax_psd:
-            k, inc = util.choose_datetime_inc(self.winlen_seconds)
-            self.timeax_psd = np.arange(stime, etime, inc, dtype="datetime64[{}]".format(k))
-
+        self.timeax_psd = timeax_psd
         return DATA
 
 
-    def _get_data_indices(self, DATA, times):
-        # Amplitude indices: we only select whole processing units (e.g. 1 day)
-        # Get indices of data slices
-        i = int((self.starttime - DATA.startdate) / 
-                     DATA.proclen_seconds)
-        j = int((self.endtime + DATA.proclen_seconds - DATA.startdate) / 
-                         DATA.proclen_seconds)
-        inds_amp = slice(i, j)
+    def _get_indices_timeax_timerange(self, DATA):
+        times = [self.starttime, self.endtime]
+        inds_amp, inds_psd = util._get_data_indices(DATA, times)
+        k, inc = util.choose_datetime_inc(DATA.seconds_per_window)
+        timeax_psd = np.arange(self.starttime, self.endtime, inc, 
+                            dtype="datetime64[{}]".format(k))
+        return inds_amp, slice(*inds_psd), timeax_psd
 
-        # PSD indices
-        inds = [int((t - DATA.startdate) / DATA.seconds_per_window )
-                for t in times] 
-        if len(inds) == 2:
-            inds_psd = slice(*inds)
+    def _get_indices_timeax_timelist(self, DATA, starttimes):
+        starttimes = [t for t in starttimes if 
+                t <= self.starttime or t >= self.endtime]
+        timeax_psd = np.array([np.datetime64(t) for t in starttimes])
+        return *util._get_data_indices(DATA, starttimes), timeax_psd
+
+    def _get_data_indices(self, DATA, starttimes, timerange):
+        if timerange:
+            return self._get_indices_timeax_timerange(DATA)
         else:
-            # i, j = np.unravel_index(inds, DATA.amplitudes.shape)
-            inds_psd = inds
+            return self._get_indices_timeax_timelist(DATA, starttimes)
+        # # Amplitude indices: we only select whole processing units (e.g. 1 day)
+        # # Get indices of data slices
+        # i = int((times[0] - DATA.startdate) / 
+        #              DATA.proclen_seconds)
+        # j = int((times[-1] + DATA.proclen_seconds - DATA.startdate) / 
+        #                  DATA.proclen_seconds)
+        # inds_amp = slice(i, j)
 
-        return inds_amp, inds_psd
+        # # PSD indices
+        # inds = [int((t - DATA.startdate) / DATA.seconds_per_window )
+        #         for t in times] 
+        # if len(inds) == 2:
+        #     inds_psd = slice(*inds)
+        # else:
+        #     # i, j = np.unravel_index(inds, DATA.amplitudes.shape)
+        #     inds_psd = inds
+
+        # return inds_amp, inds_psd
 
 
     def infostr(self):
