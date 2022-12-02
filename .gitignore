@@ -4,7 +4,6 @@ docs/build/html/*
 docs/build/html/.*
 jupyter/
 *Untitled*.ipynb
-notebooks/johannas_chaos/
 testing/output
 testing/*.log
 run_eida*
