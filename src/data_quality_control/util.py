@@ -124,13 +124,13 @@ def resample(st, sampling_rate):
     `tr.resample()` to decrease sampling rate.
     """
     for tr in st:
-        if tr.stats.sampling_rate > sampling_rate:
+        if tr.stats.sampling_rate < sampling_rate:
             module_logger.info("Up-sampling of {} from {:g} Hz to {} Hz".format(
                 tr.id, tr.stats.sampling_rate, sampling_rate
             ))
             tr.interpolate(sampling_rate)
             
-        elif tr.stats.sampling_rate < sampling_rate:
+        elif tr.stats.sampling_rate > sampling_rate:
             module_logger.info("Down-sampling {} from {:g} Hz to {} Hz".format(
                 tr.id, tr.stats.sampling_rate, sampling_rate
             ))
