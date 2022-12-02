@@ -20,6 +20,7 @@ fmin, fmax = (4, 14)
 nperseg = 2048
 winlen_in_s = 3600
 proclen = 24*3600
+sampling_rate = 120
 
 outdir = 'output'
 
@@ -45,7 +46,8 @@ def main():
                 overlap=overlap, nperseg=nperseg, 
                 winlen_seconds=winlen_in_s, 
                 proclen_seconds=proclen,
-                amplitude_frequencies=(fmin, fmax))
+                amplitude_frequencies=(fmin, fmax),
+                sampling_rate=sampling_rate)
 
         print(processor)
 

@@ -119,14 +119,23 @@ def resample(st, sampling_rate):
     """
     Resample traces in stream to common sampling rate 
     if necessary.
+
+    We use `tr.interpolate()` to increase and
+    `tr.resample()` to decrease sampling rate.
     """
     for tr in st:
-        if tr.stats.sampling_rate != sampling_rate:
-            module_logger.info("Resampling {} from {:g} Hz to {} Hz".format(
+        if tr.stats.sampling_rate > sampling_rate:
+            module_logger.info("Up-sampling of {} from {:g} Hz to {} Hz".format(
+                tr.id, tr.stats.sampling_rate, sampling_rate
+            ))
+            tr.interpolate(sampling_rate)
+            
+        elif tr.stats.sampling_rate < sampling_rate:
+            module_logger.info("Down-sampling {} from {:g} Hz to {} Hz".format(
                 tr.id, tr.stats.sampling_rate, sampling_rate
             ))
             tr.resample(sampling_rate, no_filter=False)
-            
+           
 
 
 def merge_different_samplingrates(st):
