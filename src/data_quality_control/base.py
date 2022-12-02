@@ -422,11 +422,6 @@ class ProcessingParameters():
                 self.__setattr__(k, kwargs[k])
             else:
                 self.__setattr__(k, v)
-        # self.overlap = overlap
-        # self.amplitude_frequencies = amplitude_frequencies
-        # self.nperseg = nperseg
-        # self.winlen_seconds = winlen_seconds
-        # self.proclen_seconds = proclen_seconds
 
     def __repr__(self) -> str:
         """
@@ -443,7 +438,9 @@ class ProcessingParameters():
     
 
     def update(self, **kwargs):
-        """Update an attribute"""
+        """
+        Update an attribute
+        """
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__setattr__(k, v)

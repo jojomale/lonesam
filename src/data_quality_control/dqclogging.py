@@ -27,13 +27,10 @@ def create_logger():
     # Try to get the package name, may not work for python <3.9 versions
     try: 
         if __package__ is None and __name__ != "__main__":
-            # print("Using name for logger from __name__", __name__)
             loggername = __name__.split('.')[0]
         elif __package__ == "":
-            # print("Setting loggername to eidaqc")
             loggername = "dataqc"
         else:
-            # print("Using name for logger from __package__", __package__)
             loggername = __package__
     except UnboundLocalError:
         print("Error, using ", __name__.split('.')[0])
@@ -52,7 +49,7 @@ def create_logger():
                                     datefmt='%y-%m-%d %H:%M:%S')
         ch.setFormatter(cformatter)
         logger.addHandler(ch)
-    return logger #, logger_ea, logger_ar, logger_dpc, logger_rm
+    return logger
 
 
 def configure_handlers(logger, loglevel_console, loglevel_file, logfilename, 
@@ -93,23 +90,6 @@ def configure_handlers(logger, loglevel_console, loglevel_file, logfilename,
     logger.addHandler(ch)
     logger.addHandler(fh)
 
-    # Create loggers for each class
-    ## We don't need to add the handlers again, messages are propagated
-    ## up to main logger
     
-    # logger_ea = logging.getLogger(__name__+'.EidaAvailability')
-    # logger_ea.setLevel(logging.DEBUG)
-
-    # logger_ar = logging.getLogger(__name__+'.AvailabilityReport')
-    # logger_ar.setLevel(logging.DEBUG)
-
-    # logger_dpc = logging.getLogger(__name__+'.DoubleProcessCheck')
-    # logger_dpc.setLevel(logging.DEBUG)
-
-    # logger_rm = logging.getLogger(__name__+'.RetryManager')
-    # logger_rm.setLevel(logging.DEBUG)
-    #logger_ea.addHandler(ch)
-    #logger_ea.propagate = False
-    #logger_ea.addHandler(fh) 
     logger.info("Find log file at %s" % logfilename)
         #os.path.join(logfilename, 'dataqc.log'))
