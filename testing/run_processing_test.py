@@ -21,7 +21,7 @@ nperseg = 2048
 winlen_in_s = 3600
 proclen = 24*3600
 
-outdir = 'outputy/apple'
+outdir = 'output'
 
 sds_root = os.path.abspath('../sample_sds')
 inventory_routing_type = "eida-routing"

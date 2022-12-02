@@ -55,7 +55,8 @@ def _create_hdf5_attribs(f, stationcode, starttime, endtime,
     f.attrs.create('seconds_per_proclen', np.array(proclen_seconds))
 
 
-def process_stream(st, inv, starttime, endtime):
+def process_stream(st, inv, starttime, endtime, 
+                    sampling_rate=None):
     """
     Standard processing steps to perform on seismic data
     before further analysis. Returns single trace.
@@ -100,7 +101,8 @@ def process_stream(st, inv, starttime, endtime):
     """
     st.remove_sensitivity(inv)
     #st.merge(fill_value=np.nan)
-    merge_different_samplingrates(st)
+    resample(st, sampling_rate)
+    st.merge(fill_value=np.nan)
     st.trim(starttime, endtime, pad=True, fill_value=np.nan, 
             nearest_sample=False)
     if len(st) > 1:
@@ -111,6 +113,20 @@ def process_stream(st, inv, starttime, endtime):
     # Demean ignoring gaps
     tr.data = tr.data - np.nanmean(tr.data)
     return tr
+
+
+def resample(st, sampling_rate):
+    """
+    Resample traces in stream to common sampling rate 
+    if necessary.
+    """
+    for tr in st:
+        if tr.stats.sampling_rate != sampling_rate:
+            module_logger.info("Resampling {} from {:g} Hz to {} Hz".format(
+                tr.id, tr.stats.sampling_rate, sampling_rate
+            ))
+            tr.resample(sampling_rate, no_filter=False)
+            
 
 
 def merge_different_samplingrates(st):

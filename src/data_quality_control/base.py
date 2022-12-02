@@ -52,6 +52,7 @@ default_processing_params = dict(
     nperseg = 2048,
     winlen_seconds = 3600,
     proclen_seconds = 24*3600,
+    sampling_rate = 100
 )
 
 
@@ -562,7 +563,7 @@ class NSCProcessor():
         fmin, fmax = self.processing_params.amplitude_frequencies
         AMP = []
         PXX = []
-        frequency_axis = []
+        # frequency_axis = []
         start_after = 0  # counter for missing frames at beginning
         output = BaseProcessedData(starttime, endtime, 
                         self.stationcode,
@@ -583,7 +584,8 @@ class NSCProcessor():
             st = self.dataclient.get_waveforms(starttime=starttime, endtime=endtime, 
                                     **self.nsc_as_dict())
             try:
-                tr = preprocessing(st, inv, starttime, endtime)
+                tr = preprocessing(st, inv, starttime, endtime, 
+                        self.processing_params.sampling_rate)
             # No data in trace:
             except IndexError:
                 # self.logger.debug("No data for %s" % UTC((starttime + overlap).date))
@@ -603,17 +605,17 @@ class NSCProcessor():
                 continue
 
             # Get some numbers
-            sr = tr.stats.sampling_rate
+            #sr = tr.stats.sampling_rate
             nf = int(self.processing_params.proclen_seconds/
                      self.processing_params.winlen_seconds)
             #proclen_samples = proclen * sr
-            winlen_samples = int(self.processing_params.winlen_seconds * sr)
+            winlen_samples = int(self.processing_params.winlen_seconds * self.processing_params.sampling_rate)
             
             # Spectra
             data = util.get_adjacent_frames(tr, 
                     starttime+self.processing_params.overlap, 
                     nf, winlen_samples)
-            frequency_axis, P = welch(data, fs=sr, 
+            frequency_axis, P = welch(data, fs=self.processing_params.sampling_rate, 
                     nperseg=self.processing_params.nperseg, axis=1)
                 
             # Amplitude
