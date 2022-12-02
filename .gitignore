@@ -5,7 +5,8 @@ docs/build/html/.*
 jupyter/
 *Untitled*.ipynb
 notebooks/johannas_chaos/
-testing/
+testing/output
+testing/*.log
 run_eida*
 gitsvn.sh
 docs/html/.doctrees/*
