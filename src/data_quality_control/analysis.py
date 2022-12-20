@@ -59,8 +59,10 @@ class Analyzer():
         self.stationcode in self.datadir
         """
         #return glob(self.fmtstr.rpartition("_")[0] + "*.hdf5")
+        self.logger.info("Looking for pattern " + str(Path(self.datadir).joinpath(
+                        self.stationcode+"_"+util.FNAME_WILDCARD[self.fileunit]+".hdf5")))
         return [str(f) for f in 
-                Path(self.datadir).glob(self.stationcode+"*.hdf5")]
+                Path(self.datadir).glob(self.stationcode+"_"+util.FNAME_WILDCARD[self.fileunit]+".hdf5")]
 
 
     def get_available_timerange(self):

@@ -535,12 +535,20 @@ def iter_hours(starttime, endtime):
 # Format strings for output-filenames, 
 # depending on `fileunit` of Processor
 FNAME_BASE = "{outdir}"+os.path.sep+"{network}.{station}.{location}.{channel}_"
-FNAME_FMTS = {
+
+FNAME_WILDCARD = {
+    "year" :    "[0-9][0-9][0-9][0-9]",
+    "month" :   "[0-9][0-9][0-9][0-9]-[0-9][0-9]",
+    "day" :     "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]",
+    "hour" :    "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9]",
+    }
+
+FNAME_FMT = {
     "year" :    FNAME_BASE + "{year:04d}.hdf5",
     "month" :   FNAME_BASE + "{year:04d}-{month:02d}.hdf5",
     "day" :     FNAME_BASE + "{year:04d}-{month:02d}-{day:02d}.hdf5",
     "hour" :    FNAME_BASE + "{year:04d}-{month:02d}-{day:02d}-{hour:02d}.hdf5",
-    }
+}
 
 TIME_ITERATORS = {
     "year": iter_years,
