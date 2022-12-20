@@ -347,7 +347,7 @@ class Analyzer():
             fig = ax.get_figure()
         
         pmesh = ax.pcolormesh(self.timeax_psd, self.freqax, 
-                            np.log10(self.psds.T)*10, 
+                            np.log10(self.psds.T*1e9**2), 
                             shading="auto",
                             **kwargs)
         fig.autofmt_xdate()
