@@ -352,7 +352,8 @@ class Analyzer():
                             **kwargs)
         fig.autofmt_xdate()
         plt.colorbar(pmesh, ax=ax, 
-                    label=r'power spectral density, dB($\frac{m^2}{s^2\cdot Hz}$)')        
+                    #label=r'power spectral density, dB($\frac{m^2}{s^2\cdot Hz}$)'
+                    label=r'power spectral density, log_{10}($\frac{nm^2}{s^2\cdot Hz}$)')        
         ax.set_xlabel("time")
         ax.set_ylabel("frequency, Hz")
         return fig
