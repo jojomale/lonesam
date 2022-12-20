@@ -202,6 +202,7 @@ class Analyzer():
                             "start and endtime of time range. " + 
                             "Times must be obspy.UTCDateTimes.")
 
+        self.logger.debug("timerange is set to {}".format(timerange))
         starttimes = sorted(starttimes)
         etime = starttimes[-1]
         stime = starttimes[0]
@@ -268,13 +269,15 @@ class Analyzer():
             self.logger.debug("Adjusting endtime to available: {}".format(etime))
         self.set_time(stime, etime)
 
-
+        # print(len(starttimes))
+        # print(timerange)
         inds_amp, inds_psd, timeax_psd = self._get_data_indices(DATA, starttimes, timerange)
-        self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
-        self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
+        #self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
+        #self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
         
         self.amps = DATA.amplitudes[inds_amp,:]
         self.psds = DATA.psds.reshape((-1, DATA.psds.shape[-1]))[inds_psd]
+        self.logger.debug(self.psds.shape)
         self.freqax = DATA.frequency_axis
         self.proclen_seconds = DATA.proclen_seconds
         self.winlen_seconds = DATA.seconds_per_window
@@ -292,10 +295,18 @@ class Analyzer():
         return inds_amp, slice(*inds_psd), timeax_psd
 
     def _get_indices_timeax_timelist(self, DATA, starttimes):
+        self.logger.debug("len(input starttimes): {:d}".format(
+            len(starttimes)))
         starttimes = [t for t in starttimes if 
-                t <= self.starttime or t >= self.endtime]
+                t >= self.starttime and t <= self.endtime]
+        #print(starttimes)
+        self.logger.debug("len(starttimes) within available time: {:d}".format(
+            len(starttimes)))
         timeax_psd = np.array([np.datetime64(t) for t in starttimes])
-        return *util._get_data_indices(DATA, starttimes), timeax_psd
+        self.logger.debug("Returning indices for timelist")
+        inds_amp, inds_psd = util._get_data_indices(DATA, starttimes)
+        self.logger.debug("Inds_psd: {:g}".format(len(inds_psd)))
+        return inds_amp, inds_psd, timeax_psd
 
     def _get_data_indices(self, DATA, starttimes, timerange):
         if timerange:
