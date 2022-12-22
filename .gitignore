@@ -6,7 +6,8 @@ docs/build
 jupyter/
 *Untitled*.ipynb
 testing/output
-testing/*.log
+testing/figures
+testing/log
 run_eida*
 gitsvn.sh
 docs/html/.doctrees/*

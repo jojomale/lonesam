@@ -4,6 +4,7 @@
 """
 Plot processed data using analysis module.
 """
+from os import remove
 from pathlib import Path
 import numpy as np
 from obspy.core import UTCDateTime as UTC
@@ -11,7 +12,7 @@ from obspy.core import UTCDateTime as UTC
 from data_quality_control import analysis, dqclogging
 
 # Set verbosity: "ERROR" < "WARNING" < "INFO" < "DEBUG"
-analysis.logger.setLevel("INFO")
+#analysis.logger.setLevel("INFO")
 
 # Station id
 network = 'GR'
@@ -26,7 +27,14 @@ datadir = Path('output')
 starttime = UTC("2020-12-20")
 endtime = UTC("2021-01-10")
 
-dqclogging.configure_handlers(analysis.logger, "INFO", "DEBUG", "dqc_analysis_test.log")
+figdir = Path("figures/")
+
+logfilename = "log/dqc_analysis_test.log"
+
+
+if Path(logfilename).is_file():
+        remove(logfilename)
+dqclogging.configure_handlers(analysis.logger, "INFO", "DEBUG", logfilename)
 
 
 def create_random_timelist(starttime, endtime, N):
@@ -37,6 +45,10 @@ def create_random_timelist(starttime, endtime, N):
 
 
 def main():
+
+    assert datadir.exists(), \
+        "data directory {} does not exist".format(str(datadir))
+
     stationcode = "{}.{}.{}.{}".format(network, station, 
                                    location, channel)
     lyza = analysis.Analyzer(datadir, stationcode,
@@ -45,6 +57,7 @@ def main():
     files = lyza.get_available_datafiles()
     print("\nAll available files in {}:\n".format(lyza.datadir),
              files, "\n")
+    
     
     av_stime, av_etime = lyza.get_available_timerange()
     print("Available time range in {}\n{} - {}\n".format(
@@ -59,7 +72,7 @@ def main():
     
 
     fig_cont = lyza.plot_spectrogram()
-    fig_cont.savefig(datadir.joinpath("spectrogram_timerange.png"))
+    fig_cont.savefig(figdir.joinpath("spectrogram_timerange.png"))
 
 
     fig_amp, fig_psd = lyza.plot3d()
@@ -71,17 +84,20 @@ def main():
     # Save 3d-Figures as html-files. Can be opened in browser.
     for flabel, fig in zip(["amp", "psd"], [fig_amp, fig_psd]):
         html = fig.to_html(include_mathjax="cdn")
-        with open("output/fig3d_{}.html".format(flabel), "w") as f:
+        with open(figdir.joinpath("fig3d_{}.html".format(flabel)), "w") as f:
             f.write(html)
 
 
     # Time list
-    tlist = create_random_timelist(starttime, endtime, 20)
+    tlist = create_random_timelist(av_stime, av_etime, 20)
     DATA = lyza.get_data(tlist)
     print("Loaded data for time list", DATA, "\n")
+    print(lyza.psds.shape)
+    assert lyza.psds.shape[0] == len(tlist), \
+        "lyza.psds.shape[0] does not match len(tlist)"
 
     fig_tlist = lyza.plot_spectrogram()
-    fig_tlist.savefig(datadir.joinpath("spectrogram_timelist.png"))
+    fig_tlist.savefig(figdir.joinpath("spectrogram_timelist.png"))
 
     fig_cont.show()
     fig_tlist.show()

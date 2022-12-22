@@ -52,9 +52,15 @@ def create_logger():
     return logger
 
 
-def configure_handlers(logger, loglevel_console, loglevel_file, logfilename, 
+def configure_handlers(logger, loglevel_console, loglevel_file, 
+                        logfilename, use_new_file=False
                       #  log_timeunit, log_backupcount, log_interval
                         ):
+    
+    if use_new_file:
+        filemode = "w"
+    else:
+        filemode = "a"
     
     # Remove any existing handlers
     for hdl in logger.handlers:
@@ -69,7 +75,7 @@ def configure_handlers(logger, loglevel_console, loglevel_file, logfilename,
     #fh = logging.handlers.TimedRotatingFileHandler(
     #        os.path.join(logfilename, 'eida_availability_log'), 
     #        when=log_timeunit, backupCount=log_backupcount, interval=log_interval)
-    fh = logging.FileHandler(logfilename, mode="a")
+    fh = logging.FileHandler(logfilename, mode=filemode)
     fh.setLevel(loglevel_file)
     
     ## create formatter

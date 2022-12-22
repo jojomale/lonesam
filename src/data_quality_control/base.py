@@ -17,6 +17,8 @@ from datetime import timedelta
 import time
 
 import os.path
+from os import mkdir
+from pathlib import Path
 
 import numpy as np
 from scipy.signal import welch
@@ -132,7 +134,7 @@ class GenericProcessor():
         self.station = station
         self.location = location
         self.channel = channel
-        self.outdir = outdir
+        self.outdir = Path(outdir)
         self.client = dataclient
         self.invclient = invclient
         self.fileunit = fileunit
@@ -248,7 +250,8 @@ class GenericProcessor():
         
         Manages creation of output files.
         """
-        
+        self.outdir.mkdir(exist_ok=True)
+
         T0 = time.time()
         self.starttime = UTC(starttime)
         self.endtime = UTC(endtime)
