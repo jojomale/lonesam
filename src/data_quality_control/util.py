@@ -12,6 +12,8 @@ from scipy.signal import get_window
 from obspy.core import UTCDateTime as UTC
 from obspy.signal.filter import bandpass
 
+import h5py
+
 import logging
 
 from . import dqclogging
@@ -330,6 +332,32 @@ def _get_data_indices(DATA, times):
                 for t in times] 
 
         return inds_amp, inds_psd
+
+
+def _iter_open_hdf5(fnamelist):
+    """
+    Generator that returns open h5py.File object for
+    each filename in fnamelist. Closes file before
+    yielding next file and before error is raised.
+
+    Useful for testing or if direct access to the hdf5-files
+    is needed.
+
+    """
+    for fname in fnamelist:
+        module_logger.debug("Opening file %s" % fname)
+        try:
+            val = h5py.File(fname, 'r')
+            # Return file object
+            yield val
+            # Close before proceding
+            val.close()
+        # Always close file before we 
+        # present the error
+        except Exception as e:
+            val.close()
+            module_logger.exception("Error while opening file %s\n" % fname + e)
+            raise
 
 
 def iter_years(startdate, enddate):

@@ -1,6 +1,6 @@
 #import configparser
-from datetime import timedelta, time
-from glob import glob
+from datetime import timedelta #, time
+#from glob import glob
 from pathlib import Path
 import numpy as np
 
@@ -19,7 +19,7 @@ plt.style.use('tableau-colorblind10')
 
 import h5py
 
-from . import processing, base, util, dqclogging
+from . import base, util, dqclogging
 
 import logging
 # Create the global logger
@@ -105,21 +105,21 @@ class Analyzer():
         return d
     
     
-    def _tstr2time(self, t):
-        return time(*[int(s) for s in t.split(':')])
+    # def _tstr2time(self, t):
+    #     return time(*[int(s) for s in t.split(':')])
         
             
-    def _update_datetime(self):
-        self.starttime = UTC("{}T{}".format(self.sdate, self.stime))
-        self.endtime = UTC("{}T{}".format(self.edate, self.etime))
+    # def _update_datetime(self):
+    #     self.starttime = UTC("{}T{}".format(self.sdate, self.stime))
+    #     self.endtime = UTC("{}T{}".format(self.edate, self.etime))
 
 
-    def _update_time(self, stime, etime):
-        if stime:
-            self.stime = self._tstr2time(stime)
-        if etime:
-            self.etime = self._tstr2time(etime)
-        self._update_datetime()
+    # def _update_time(self, stime, etime):
+    #     if stime:
+    #         self.stime = self._tstr2time(stime)
+    #     if etime:
+    #         self.etime = self._tstr2time(etime)
+    #     self._update_datetime()
     
 
     def set_time(self, stime, etime):
@@ -137,6 +137,9 @@ class Analyzer():
         Generator that returns open h5py.File object for
         each filename in fnamelist. Closes file before
         yielding next file and before error is raised.
+
+        Useful for testing or if direct access to the hdf5-files
+        is needed.
 
         If `fnamelist=None`, we use `self.files`. Causes
         error if not set.
@@ -209,22 +212,6 @@ class Analyzer():
         etime = starttimes[-1]
         stime = starttimes[0]
             
-
-        # if isinstance(starttimes, (list, np.ndarray, tuple)):
-        #     stime = min(starttimes)
-        #     etime = max(starttimes)
-        #     #self.timeax_psd = [np.datetime64(t) for t in starttimes]
-        # elif isinstance(starttimes, UTC) and isinstance(endtime, UTC):
-        #     etime = endtime
-        #     stime = starttimes
-        #     starttimes = [stime, etime]
-        #     #self.timeax_psd = None
-        # else:
-        #     raise UserWarning("Need to give either list of times or" + 
-        #                     "start and endtime of time range. " + 
-        #                     "Times must be obspy.UTCDateTimes.")
-
-        #self.set_time(stime, etime)
         self.files = self._get_filenames(stime, etime)
 
         DATA = base.BaseProcessedData()
@@ -277,14 +264,16 @@ class Analyzer():
         #self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
         #self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
         
+        ## It might make more sense to add the DATA directly
         self.amps = DATA.amplitudes[inds_amp,:]
         self.psds = DATA.psds.reshape((-1, DATA.psds.shape[-1]))[inds_psd]
-        self.logger.debug(self.psds.shape)
+        #self.logger.debug(self.psds.shape)
         self.freqax = DATA.frequency_axis
         self.proclen_seconds = DATA.proclen_seconds
         self.winlen_seconds = DATA.seconds_per_window
         self.nwin = self.amps.shape[1]
         self.timeax_psd = timeax_psd
+        self.amplitude_frequency_range = DATA.amplitude_frequencies
         return DATA
 
 
@@ -315,31 +304,13 @@ class Analyzer():
             return self._get_indices_timeax_timerange(DATA)
         else:
             return self._get_indices_timeax_timelist(DATA, starttimes)
-        # # Amplitude indices: we only select whole processing units (e.g. 1 day)
-        # # Get indices of data slices
-        # i = int((times[0] - DATA.startdate) / 
-        #              DATA.proclen_seconds)
-        # j = int((times[-1] + DATA.proclen_seconds - DATA.startdate) / 
-        #                  DATA.proclen_seconds)
-        # inds_amp = slice(i, j)
-
-        # # PSD indices
-        # inds = [int((t - DATA.startdate) / DATA.seconds_per_window )
-        #         for t in times] 
-        # if len(inds) == 2:
-        #     inds_psd = slice(*inds)
-        # else:
-        #     # i, j = np.unravel_index(inds, DATA.amplitudes.shape)
-        #     inds_psd = inds
-
-        # return inds_amp, inds_psd
 
 
-    def infostr(self):
-        t = (self.stationcode + "<br>" +
-            "{} - {}<br>".format(self.sdate, self.edate) +
-            "{} - {}".format(self.stime, self.etime))
-        return t
+    # def infostr(self):
+    #     t = (self.stationcode + "<br>" +
+    #         "{} - {}<br>".format(self.sdate, self.edate) +
+    #         "{} - {}".format(self.stime, self.etime))
+    #     return t
 
 
     def plot_spectrogram(self, ax=None, **kwargs):
@@ -355,7 +326,7 @@ class Analyzer():
         fig.autofmt_xdate()
         plt.colorbar(pmesh, ax=ax, 
                     #label=r'power spectral density, dB($\frac{m^2}{s^2\cdot Hz}$)'
-                    label=r'power spectral density, log_{10}($\frac{nm^2}{s^2\cdot Hz}$)')        
+                    label=r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz}$)')        
         ax.set_xlabel("time")
         ax.set_ylabel("frequency, Hz")
         return fig
@@ -426,9 +397,10 @@ class Analyzer():
         
         #nwin = z.shape[1]
         #z = z.reshape((z.shape[0]*z.shape[1], z.shape[2]))
-        dateax, timeax = self._get_time_axis()
-        datetimeax = dateax[:,None] + timeax[None,:]
-        y = datetimeax.ravel()
+        #dateax, timeax = self._get_time_axis()
+        #datetimeax = dateax[:,None] + timeax[None,:]
+        #y = datetimeax.ravel()
+        y = self.timeax_psd
         x = self.freqax
         fig = self._plotly_3dsurface(x, y, z, name="psds")
 
@@ -450,8 +422,8 @@ class Analyzer():
         return fig
 
 
-    def plot_psd(self):
-        pass
+    # def plot_psd(self):
+    #     pass
 
     
 
@@ -489,6 +461,30 @@ class Analyzer():
         timeax = np.arange(0, self.nwin*dtinc, np.timedelta64(dtinc, dtflag))
         #print(timeax)
         return dateax, timeax
+
+
+    def __repr__(self) -> str:
+        s1 = "Analyzer for station {}".format(self.stationcode)
+        datadir = "Datadir: {}".format(str(self.datadir))
+        fileunit = "HDF5-file covers 1 {}".format(self.fileunit)
+        fmtstr = "Filename pattern: {}".format(self.fmtstr)
+        loglevel = "Loglevel: {}".format(self.logger.level)
+
+        try:
+            l1 = "I have data for {} - {}".format(self.starttime, self.endtime)
+            shp1 = "Amplitude shape = {}".format(self.amps.shape)
+            shp2 = "PSD shape = {}".format(self.psds.shape)
+            pr1 = "Seconds per window = {:g}".format(self.winlen_seconds)
+            pr2 = "Amplitude for {:g} - {:g} Hz".format(
+                *self.amplitude_frequency_range)
+
+            s2 = "\n".join([l1, shp1, shp2, pr1, pr2])
+        except AttributeError as e:
+            s2 = ""
+            self.logger.debug(e)
+        
+        return "\n".join([s1, datadir, fileunit, fmtstr, loglevel, s2])
+
 
        
 
