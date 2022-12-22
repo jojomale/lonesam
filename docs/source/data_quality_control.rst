@@ -15,6 +15,5 @@ Submodules
    data_quality_control.analysis
    data_quality_control.base
    data_quality_control.cmdline
-   data_quality_control.processing
    data_quality_control.sds_db
    data_quality_control.util

@@ -103,7 +103,8 @@ def process_stream(st, inv, starttime, endtime,
     """
     st.remove_sensitivity(inv)
     #st.merge(fill_value=np.nan)
-    resample(st, sampling_rate)
+    if sampling_rate:
+        resample(st, sampling_rate)
     st.merge(fill_value=np.nan)
     st.trim(starttime, endtime, pad=True, fill_value=np.nan, 
             nearest_sample=False)

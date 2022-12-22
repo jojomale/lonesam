@@ -2,6 +2,7 @@
 docs/build/html/
 docs/build/html/*
 docs/build/html/.*
+docs/build
 jupyter/
 *Untitled*.ipynb
 testing/output

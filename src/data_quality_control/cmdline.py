@@ -26,24 +26,27 @@ default values.
 
 
 import argparse
-import pathlib
+from pathlib import Path
 import time
 from datetime import timedelta
 from obspy.core import UTCDateTime as UTC
 
-from . import processing, base, sds_db
+from . import base, sds_db, dqclogging
 
-# default_settings = dict(network = '*',
-#     station = '*',
-#     channel = '*',
-#     overlap = 60,
-#     amplitude_frequencies = (4,14),
-#     nperseg = 2048,
-#     winlen_in_s = 3600,
-#     proclen = 24*3600,
-#     sds_root = os.path.abspath('.'),
-#     inventory_routing_type = "eida-routing",
-#     sds_client_dict = {})
+logger = dqclogging.create_logger()
+module_logger = dqclogging.logging.getLogger(logger.name+'.base')
+
+default_settings = dict(network = '*',
+    station = '*',
+    channel = '*',
+    overlap = 60,
+    amplitude_frequencies = (4,14),
+    nperseg = 2048,
+    winlen_in_s = 3600,
+    proclen = 24*3600,
+    sds_root = Path('.'),
+    inventory_routing_type = "eida-routing",
+    sds_client_dict = {})
 
 def parse_argument():
     """
@@ -66,7 +69,7 @@ def parse_argument():
     parser.add_argument("inventory_routing_type", type=str,
             help="routing client for inventory",
             choices=["eida-routing", "iris-federator"])
-    parser.add_argument("sds_root", type=pathlib.Path,
+    parser.add_argument("sds_root", type=Path,
             help="root-directory of sds-filesystem")
     
     parser.add_argument("starttime", type=UTC, 
@@ -75,7 +78,7 @@ def parse_argument():
             help="end of time range you want to analyze")
     
     
-    parser.add_argument("-o", "--outdir", type=pathlib.Path, 
+    parser.add_argument("-o", "--outdir", type=Path, 
             help="where to put the processed data",
             default=".")
     parser.add_argument("--overlap", type=int,
@@ -98,7 +101,7 @@ def parse_argument():
             help="min and max frequency of bandpass before "+
             "amplitude analysis.",
             default=base.default_processing_params["amplitude_frequencies"] )
-    parser.add_argument("--configfile", type=pathlib.Path,
+    parser.add_argument("--configfile", type=Path,
             help="file with parameters. additionally given parameters "+
             "override those from file")
     parser.add_argument("-f", "--force-new-file",
@@ -115,7 +118,7 @@ def parse_argument():
     arg_dict= vars(parser.parse_args())
     proc_args = {k: arg_dict.pop(k) for k in ['starttime', 'endtime']}
     loglevel = arg_dict.pop("verbosity")
-    processing.logger.setLevel(loglevel)
+    module_logger.setLevel(loglevel)
     #print(args)
     return arg_dict, proc_args
 
@@ -144,46 +147,46 @@ def parse_argument_old():
             help="beginning of time range you want to analyze")
     parser.add_argument("enddate", type=UTC, 
             help="end of time range you want to analyze")
-    parser.add_argument("outdir", type=pathlib.Path, 
+    parser.add_argument("outdir", type=Path, 
             help="where to put the processed data")
 
     parser.add_argument("-n", "--network", type=str, 
             help="network(s), may contain glob-style wildcards",
-            default=processing.default_settings["network"])
+            default=default_settings["network"])
     parser.add_argument("-s", "--station", type=str, 
             help="station(s), may contain glob-style wildcards",
-            default=processing.default_settings["station"])
+            default=default_settings["station"])
     parser.add_argument("-c", "--channel", type=str, 
             help="channel(s), may contain glob-style wildcards",
-            default=processing.default_settings["channel"])
-    parser.add_argument("--sds-root", type=pathlib.Path,
+            default=default_settings["channel"])
+    parser.add_argument("--sds-root", type=Path,
             help="root-directory of sds-filesystem",
-            default=processing.default_settings["sds_root"])
+            default=default_settings["sds_root"])
     parser.add_argument("--inventory-routing-type", type=str,
             help="routing client for inventory",
             choices=["eida-routing", "iris-federator"],
-            default=processing.default_settings["inventory_routing_type"])
+            default=default_settings["inventory_routing_type"])
     parser.add_argument("--overlap", type=int,
             help="seconds by which the data is extended beyond time range "+
                     "to accomodate filter effects etc.",
-            default=processing.default_settings["overlap"])
+            default=default_settings["overlap"])
     parser.add_argument("--proclen", type=int,
             help="seconds to process at once, ideally duration of " +
                     "the data file",
-            default=processing.default_settings["proclen"])
+            default=default_settings["proclen"])
     parser.add_argument("--winlen-in-s", type=int,
             help="time over which amplitude and spectra are computed," +
             " in seconds",
-            default=processing.default_settings["winlen_in_s"])
+            default=default_settings["winlen_in_s"])
     parser.add_argument("--nperseg", type=int,
             help="length of segment for spectral estimation "+
             "(scipy.signal.welch), in samples ",
-            default=processing.default_settings["nperseg"])
+            default=default_settings["nperseg"])
     parser.add_argument("--amplitude-frequencies", type=float, nargs=2,
             help="min and max frequency of bandpass before "+
             "amplitude analysis.",
-            default=processing.default_settings["amplitude_frequencies"] )
-    parser.add_argument("--configfile", type=pathlib.Path,
+            default=default_settings["amplitude_frequencies"] )
+    parser.add_argument("--configfile", type=Path,
             help="file with parameters. additionally given parameters "+
             "override those from file")
 
@@ -196,14 +199,14 @@ def parse_argument_old():
     arg_dict= vars(parser.parse_args())
     proc_args = {k: arg_dict.pop(k) for k in ['startdate', 'enddate', "outdir"]}
     loglevel = arg_dict.pop("verbosity")
-    processing.logger.setLevel(loglevel)
+    module_logger.setLevel(loglevel)
     #print(args)
     return arg_dict, proc_args
 
 
 def run_raw_processing_old(args1, args2):
     
-    processor = processing.RawDataProcessor(
+    processor = base.RawDataProcessor(
             **args1
             )
     #processor.print()
