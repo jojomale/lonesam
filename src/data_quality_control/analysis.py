@@ -367,16 +367,18 @@ class Analyzer():
 
     def plot3d_amplitudes(self, func=None):
 
-        title = ("Hourly 75%-amplitude<br>" + 
-                    self.infostr()
-            )
-
+        
         if func:
             z = func(self.amps)
         else:
             z = self.amps
         dateax, timeax = self._get_time_axis()
-        
+
+        title = ("Hourly 75%-amplitude<br>" + 
+            "{} - {}<br>".format(min(dateax), max(dateax)) +
+            "{} - {}".format(min(timeax), max(timeax))
+            )
+
         # Numpy-datetime can give you a **really** hard time to convert
         # between the different increments....
         xticks = [str(timedelta(
@@ -402,34 +404,48 @@ class Analyzer():
 
         
 
-    def plot3d_psds(self, func=None):
+    def plot3d_psds(self, func=None, zlabel=None):
+        """
+        
+        Notes
+        ----------
+        Latex rendering for me works in title but not on axis labels.
+        """
 
-        title = ("Hourly power spectral density\n" + 
-                    self.infostr()
-            )
         if func:
             z = func(self.psds)
+            if zlabel is None:
+                try:
+                    funcname = func.__name__+"(", ")"
+                except AttributeError:
+                    funcname = "", ""
+                zlabel = "psd, {}m^2/s^2/Hz{}".format(*funcname)
         else:
-            z = self.psds
-        try:
-            funcname = func.__name__+"(", ")"
-        except AttributeError:
-            funcname = "", ""
-        nwin = z.shape[1]
-        z = z.reshape((z.shape[0]*z.shape[1], z.shape[2]))
+            z = np.log10(self.psds*1e9**2)
+            zlabel = r"$\alpha \log_{10}\frac{nm^2}{s^2Hz}$"
+        
+        #nwin = z.shape[1]
+        #z = z.reshape((z.shape[0]*z.shape[1], z.shape[2]))
         dateax, timeax = self._get_time_axis()
         datetimeax = dateax[:,None] + timeax[None,:]
         y = datetimeax.ravel()
         x = self.freqax
         fig = self._plotly_3dsurface(x, y, z, name="psds")
+
+        title = ("Hourly power spectral density<br>" + 
+           "{} - {}<br>".format(min(y), max(y))
+           )
+        #title = r'$\frac{\alpha^2}{\beta}$'
+
         fig.update_layout(title=title, 
                         scene=dict(
                             xaxis=dict(title='Frequency, Hz'),
                             yaxis=dict(title='Datetime'),
-                            zaxis=dict(title="psd, {}m^2/s^2/Hz{}".format(*funcname)
+                            zaxis=dict(title=zlabel#"psd, {}m^2/s^2/Hz{}".format(*funcname)
                                         )
                                 )
-                            ),
+                            )
+        
                         
         return fig
 

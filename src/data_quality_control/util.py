@@ -543,7 +543,7 @@ FNAME_WILDCARD = {
     "hour" :    "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9]",
     }
 
-FNAME_FMT = {
+FNAME_FMTS = {
     "year" :    FNAME_BASE + "{year:04d}.hdf5",
     "month" :   FNAME_BASE + "{year:04d}-{month:02d}.hdf5",
     "day" :     FNAME_BASE + "{year:04d}-{month:02d}-{day:02d}.hdf5",

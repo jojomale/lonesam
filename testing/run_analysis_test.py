@@ -23,8 +23,8 @@ channel = 'HHZ'
 datadir = Path('output')
 
 # Date range that you want to inspect
-starttime = UTC("2020-12-01")
-endtime = UTC("2020-12-05")
+starttime = UTC("2020-12-20")
+endtime = UTC("2021-01-10")
 
 dqclogging.configure_handlers(analysis.logger, "INFO", "DEBUG", "dqc_analysis_test.log")
 
@@ -60,6 +60,19 @@ def main():
 
     fig_cont = lyza.plot_spectrogram()
     fig_cont.savefig(datadir.joinpath("spectrogram_timerange.png"))
+
+
+    fig_amp, fig_psd = lyza.plot3d()
+    
+    # Uncomment to show during runtime. Opens browser
+    #fig_psd.show()
+
+
+    # Save 3d-Figures as html-files. Can be opened in browser.
+    for flabel, fig in zip(["amp", "psd"], [fig_amp, fig_psd]):
+        html = fig.to_html(include_mathjax="cdn")
+        with open("output/fig3d_{}.html".format(flabel), "w") as f:
+            f.write(html)
 
 
     # Time list
