@@ -18,18 +18,17 @@ logger = dqclogging.create_logger()
 module_logger = logging.getLogger(logger.name+'.sds_db')
 
 class SDSProcessor(base.GenericProcessor):
-    def __init__(self, network, station, channel,  
+    def __init__(self, nslc_code,  
             inventory_routing_type,
             sds_root, sds_dict={}, 
             outdir='.', preprocessing=None, 
             fileunit="year", **procparams):
 
-        location = ""
+        #location = ""
         dataclient = Client(sds_root, **sds_dict)
         invclient = RoutingClient(inventory_routing_type)
 
-        super().__init__(network, station, 
-                location, channel, 
+        super().__init__(nslc_code,
                 dataclient, invclient, 
                 outdir=outdir, preprocessing=preprocessing, 
                 fileunit=fileunit, **procparams)
