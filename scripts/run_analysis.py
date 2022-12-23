@@ -17,6 +17,8 @@ network = 'GR'
 station = 'BFO'
 location = ''
 channel = 'HHZ'
+stationcode = "{}.{}.{}.{}".format(network, station, 
+                                   location, channel)
 
 
 # Date range that you want to inspect
@@ -36,8 +38,6 @@ dqclogging.configure_handlers(analysis.logger, "INFO", "DEBUG",
 
 
 def main():
-    stationcode = "{}.{}.{}.{}".format(network, station, 
-                                   location, channel)
     lyza = analysis.Analyzer(datadir, stationcode,
                             fileunit="year")
     

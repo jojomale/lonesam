@@ -124,12 +124,13 @@ class GenericProcessor():
     
     """
 
-    def __init__(self, network, station, location, channel, 
+    def __init__(self, nslc_code, 
                 dataclient, invclient,
                 outdir='.',  preprocessing=None,
                 fileunit="year",
                 **procparams):
         
+        network, station, location, channel = nslc_code.split(".")
         self.network = network
         self.station = station
         self.location = location

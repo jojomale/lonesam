@@ -15,6 +15,8 @@ station = 'BFO'
 location = ''
 channel = 'HHZ'
 
+nscl_code = "GR.BFO..HHZ"
+
 overlap = 60 #3600
 fmin, fmax = (4, 14)
 nperseg = 2048
@@ -50,7 +52,7 @@ def main():
 
 
     processor = sds_db.SDSProcessor(
-        network, station, channel, 
+        nscl_code,
         inventory_routing_type, 
         sds_root, outdir=outdir, 
         overlap=overlap, nperseg=nperseg, 
