@@ -125,6 +125,8 @@ class Analyzer():
     def set_time(self, stime, etime):
         self.starttime = stime
         self.endtime = etime
+        self.logger.info("New start and end time: {} and {}".format(
+            self.starttime, self.endtime))
 
 
     def get_all_available_data(self):
@@ -223,7 +225,7 @@ class Analyzer():
         ## I don't know why but Nans are not always trimmed correctly, leading
         ## to false dates in DATA.
         DATA.trim_nan()
-        self.logger.debug("Available time range in data: {}-{}".format(
+        self.logger.info("Available time range in data: {}-{}".format(
             DATA.startdate, DATA.enddate
         ))
         
@@ -244,7 +246,7 @@ class Analyzer():
         
         if  stime < DATA.startdate:      
             stime = DATA.startdate
-            self.logger.debug("Adjusting starttime to available: {}".format(stime))
+            self.logger.info("Adjusting starttime to available: {}".format(stime))
 
         if DATA.enddate + DATA.proclen_seconds < etime:
             # if DATA.enddate + DATA.proclen_seconds <= stime:
@@ -255,11 +257,12 @@ class Analyzer():
                 
             # else:
             etime = DATA.enddate + DATA.proclen_seconds
-            self.logger.debug("Adjusting endtime to available: {}".format(etime))
+            self.logger.info("Adjusting endtime to available: {}".format(etime))
         self.set_time(stime, etime)
 
         # print(len(starttimes))
         # print(timerange)
+
         inds_amp, inds_psd, timeax_psd = self._get_data_indices(DATA, starttimes, timerange)
         #self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
         #self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
@@ -289,7 +292,7 @@ class Analyzer():
         self.logger.debug("len(input starttimes): {:d}".format(
             len(starttimes)))
         starttimes = [t for t in starttimes if 
-                t >= self.starttime and t <= self.endtime]
+                t >= self.starttime and t < self.endtime]
         #print(starttimes)
         self.logger.debug("len(starttimes) within available time: {:d}".format(
             len(starttimes)))
@@ -297,6 +300,7 @@ class Analyzer():
         self.logger.debug("Returning indices for timelist")
         inds_amp, inds_psd = util._get_data_indices(DATA, starttimes)
         self.logger.debug("Inds_psd: {:g}".format(len(inds_psd)))
+        self.logger.debug("max ind {:g}".format(max(inds_psd)))
         return inds_amp, inds_psd, timeax_psd
 
     def _get_data_indices(self, DATA, starttimes, timerange):
