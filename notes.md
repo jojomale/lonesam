@@ -51,3 +51,52 @@ name than the name of the package in the setup (`dataqc`).
     build something standardized for simpler selection rules.
 
 - Treat error due to merging of different sampling rates (GR.BFO..HHZ 30-Nov-2011)
+
+
+# CLI
+- dataqc
+    - process
+        Options:
+            - code
+            - starttime, endtime
+            - processing paramters
+            - inventory_routing_type
+            - sds_root
+    - available
+        Options:
+            - code
+    - plot 
+        needs to be able to differentiate between timelist and time 
+        range as input
+
+        Options:
+            - code
+            - starttime, endtime or timelist
+            - -a, --a :plot all
+            - -s, --spectrogram
+            - --amplitude
+            - --spectrogram3d
+
+        Calls:
+            - dataqc plot code 2020-12-01
+            - dataqc plot code timelist.txt
+            - dataqc plot code 2020-12-01 2020-12-02 2020-12-03 ...
+            - dataqc windfilter wind.txt 2020-12-01 2021-01-01 3600 0 5| dataqc plot code 
+
+# To dos
+- Logger managment
+    - Make logfile optional
+    - Make logfile destination optional
+    - Set logger from commandline
+
+- pass timelists or time range to Analyzer.get_data() via command line: Would be cool if 
+the CLI would determine on its own whether the user gave 
+    - 1 starttime, assuming time range until today
+    - 1 starttime, 1 endtime, defining a time range
+    - a file with a time list
+    - take time list from pipe
+However mutually exclusive mandatory arguments are not exactly planned in argparse.
+As of now, I think, we would need to build a relatively complicated if-else and try-except
+sequence to distinguish all the above cases.
+Maybe it is easier to pass them all as optional arguments and if no optional ars are given,
+we plot the entire available time range

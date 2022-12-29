@@ -30,7 +30,7 @@ module_logger = logging.getLogger(logger.name+'.analysis')
 
 class Analyzer():
     def __init__(self, 
-                 datadir, nscl_code, fileunit="year",
+                 datadir, nslc_code, fileunit="year",
                 #stime="00:00", etime="23:59:59:999999"
                 ):
         #self.sdate = UTC(sdate).date
@@ -38,7 +38,7 @@ class Analyzer():
         #self._update_time(stime, etime)
         #self._update_datetime()
         self.datadir = datadir
-        self.stationcode = nscl_code
+        self.stationcode = nslc_code
         self.fileunit  = fileunit
         self.iter_time = util.TIME_ITERATORS[self.fileunit]
         

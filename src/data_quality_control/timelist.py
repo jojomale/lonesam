@@ -29,6 +29,14 @@ def interpolate_windarray(awind, stime, etime, delta):
                     t in awind[:,0]])#, dtype=np.float_)
     fp = np.asarray(awind[:,1], dtype=np.float_)
 
+    ## Add??
+    # idx = np.where(np.logical_and(xp>=stime.timestamp, 
+    #                               xp<=etime.timestamp))[0]
+    # if len(idx) == 0:
+    #     raise RuntimeError("No wind data for requested time range.")
+    # xp = xp[idx]
+    # fp = fp[idx]
+
     x = np.arange(stime.timestamp,
                  etime.timestamp+1,
                  delta)
