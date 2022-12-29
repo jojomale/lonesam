@@ -18,6 +18,6 @@ enddate="2021-01-10"
 logfilename="log/test_processing.log"
 
 conda activate dataqc
-dataqc process $nscl_code \
+dataqc process -o $outdir $nscl_code \
  $inventory_routing_type $sds_root \
  $startdate $enddate

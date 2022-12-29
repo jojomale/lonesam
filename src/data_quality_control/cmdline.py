@@ -129,12 +129,19 @@ class DataqcMain():
         parser = argparse.ArgumentParser(
                 prog="dataqc",
                 description="Command line " + 
-                "interface to dataqc package",
+                        "interface to dataqc package",
+                usage="dataqc command options",
                 epilog="Use `dataqc subcommand -h` for details and options on each command.")
 
         parser.add_argument("command", help="commands")
+        parser.add_argument("-v", "--verbosity", type=str,
+                    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                    help="set logging level",
+                    default="INFO")
         # parser.add_argument("-v","--version", help="show version and   exit", action="version", version='1.0')
+        
         args = parser.parse_args(sys.argv[1:2])
+        #print("args",args)
         if not hasattr(self, args.command):
             print('Unrecognized subcommand')
             parser.print_help()
@@ -153,7 +160,8 @@ class DataqcMain():
                 "may contain glob-style wildcards"))
         parser.add_argument("inventory_routing_type", type=str,
                 help="routing client for inventory",
-                choices=["eida-routing", "iris-federator"])
+                choices=["eida-routing", "iris-federator"]
+                )
         parser.add_argument("sds_root", type=Path,
                 help="root-directory of sds-filesystem")
         parser.add_argument("starttime", type=UTC, 
@@ -194,19 +202,25 @@ class DataqcMain():
         #         action="store_true",
         #         help="overrides existing files if given",)
         
-        parser.add_argument("-v", "--verbosity", type=str,
+        parser.add_argument("--loglevel", type=str,
                 choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                 help="set logging level",
                 default="INFO")
+        parser.add_argument("--logfile", type=Path,
+                help="Give name for logfile",
+                default="dataqc_plot.log")
+        parser.add_argument("--append_logfile", #type=bool,
+                action='store_false', 
+                #const=True, default=False, nargs="?"
+                )
+        args = parser.parse_args(sys.argv[2:])
+        print(args)
+        init_args = vars(parser.parse_args(sys.argv[2:]))
 
-        arg_dict = vars(parser.parse_args(sys.argv[2:]))
-
-        #print(parser.parse_args())
-        #arg_dict= vars(parser.parse_args())
-        #print(arg_dict)
-        proc_args = {k: arg_dict.pop(k) for k in ['starttime', 'endtime']}
-        #loglevel = arg_dict.pop("verbosity")
-        run_processing(arg_dict, proc_args)
+        
+        proc_args = {k: init_args.pop(k) for k in ['starttime', 'endtime']}
+        #loglevel = init_args.pop("verbosity")
+        run_processing(init_args, proc_args)
 
 
     def available(self):
@@ -223,6 +237,7 @@ class DataqcMain():
                 help="where to put the processed data",
                 default="year")
         args = parser.parse_args(sys.argv[2:])
+        print(args)
         run_available(args)
 
 
@@ -245,14 +260,17 @@ class DataqcMain():
                 help="where to store figures",
                 default=".")
 
-        parser.add_argument("-v", "--verbosity", type=str,
+        parser.add_argument("--loglevel", type=str,
                     choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                     help="set logging level",
                     default="INFO")
         parser.add_argument("--logfile", type=Path,
                 help="Give name for logfile",
                 default="dataqc_plot.log")
-        parser.add_argument("--append_logfile", type=bool)
+        parser.add_argument("--append_logfile", #type=bool,
+                action='store_false', 
+                #const=True, default=False, nargs="?"
+                )
         group = parser.add_mutually_exclusive_group()
         group.add_argument("-l", "--timelist", type=argparse.FileType("r"), 
                 help=("Plot spectrograms using time list." + 
@@ -354,21 +372,24 @@ class DataqcMain():
 
 
 
-def run_processing(args1, args2):
+def run_processing(init_args, proc_args):
     t = time.time()
-    print(args1)
-    dqclogging.configure_handlers(base.logger, args1["verbosity"], 
-                args1["verbosity"], "processing.log", use_new_file=True )
+    print(init_args)
+    loglevel =  init_args.pop("loglevel")
+
+    dqclogging.configure_handlers(base.logger, loglevel, 
+                loglevel, init_args.pop("logfile"), 
+                use_new_file=init_args.pop("append_logfile") )
     processor = sds_db.SDSProcessor(
-            **args1
+            **init_args
             )
 
     try:
-        processor.process(**args2)
+        processor.process(**proc_args)
     except Exception as e:
         processor.logger.exception(e)
 
-    processor.logger.info("Processing finished. Use `run_analysis.py` to view results.")
+    #processor.logger.info("Processing finished. Use `run_analysis.py` to view results.")
 
     runtime = timedelta(seconds=time.time()-t) 
     processor.logger.info("Finished. Took {} h".format(runtime))
@@ -398,10 +419,10 @@ def run_plot(args):
     #args = vars(args)
     figdir = args.figdir
     init_args = {k: args.__getattribute__(k) for k in ["datadir", "nslc_code", "fileunit"]}
+    
     lyza = analysis.Analyzer(**init_args)
-    dqclogging.configure_handlers(base.logger, args.verbosity, 
-                args.verbosity, args.logfile, use_new_file=True )
-
+    dqclogging.configure_handlers(base.logger, args.loglevel, 
+                args.loglevel, args.logfile, args.append_logfile )
 
     if args.timerange:
         print("timerange")
