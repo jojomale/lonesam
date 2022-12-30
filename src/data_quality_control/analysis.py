@@ -201,15 +201,15 @@ class Analyzer():
             if not isinstance(endtime, UTC):
                 endtime = UTC()
             starttimes = [starttimes, endtime]
-            timerange = True
+            self.timerange = True
         elif isinstance(starttimes, (list, np.ndarray, tuple)):
-            timerange = False
+            self.timerange = False
         else:
             raise UserWarning("Need to give either list of times or" + 
                             "start and endtime of time range. " + 
                             "Times must be obspy.UTCDateTimes.")
 
-        self.logger.debug("timerange is set to {}".format(timerange))
+        self.logger.debug("timerange is set to {}".format(self.timerange))
         starttimes = sorted(starttimes)
         etime = starttimes[-1]
         stime = starttimes[0]
@@ -263,7 +263,8 @@ class Analyzer():
         # print(len(starttimes))
         # print(timerange)
 
-        inds_amp, inds_psd, timeax_psd = self._get_data_indices(DATA, starttimes, timerange)
+        inds_amp, inds_psd, timeax_psd = self._get_data_indices(
+            DATA, starttimes)
         #self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
         #self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
         
@@ -303,8 +304,8 @@ class Analyzer():
         self.logger.debug("max ind {:g}".format(max(inds_psd)))
         return inds_amp, inds_psd, timeax_psd
 
-    def _get_data_indices(self, DATA, starttimes, timerange):
-        if timerange:
+    def _get_data_indices(self, DATA, starttimes):
+        if self.timerange:
             return self._get_indices_timeax_timerange(DATA)
         else:
             return self._get_indices_timeax_timelist(DATA, starttimes)
@@ -322,11 +323,16 @@ class Analyzer():
             fig, ax = plt.subplots(1,1)
         else:
             fig = ax.get_figure()
-        
-        pmesh = ax.pcolormesh(self.timeax_psd, self.freqax, 
+        if self.timerange:
+            tax = self.timeax_psd
+        else:
+            tax = np.arange(self.timeax_psd.size)
+        pmesh = ax.pcolormesh(tax, self.freqax, 
                             np.log10(self.psds.T*1e9**2), 
                             shading="auto",
                             **kwargs)
+        if not self.timerange:
+            ax.set_xticklabels(self.timeax_psd)
         fig.autofmt_xdate()
         plt.colorbar(pmesh, ax=ax, 
                     #label=r'power spectral density, dB($\frac{m^2}{s^2\cdot Hz}$)'
