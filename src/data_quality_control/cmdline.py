@@ -150,10 +150,8 @@ class DataqcMain():
                 epilog="Use `dataqc subcommand -h` for details and options on each command.")
 
         parser.add_argument("command", help="commands")
-        parser.add_argument("-v", "--verbosity", type=str,
-                    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                    help="set logging level",
-                    default="INFO")
+        
+        
         # parser.add_argument("-v","--version", help="show version and   exit", action="version", version='1.0')
         print("args",parser.parse_args())
         args = parser.parse_args(sys.argv[1:2])
@@ -519,7 +517,6 @@ def main():
 
 
 def main_subparser():
-    #print("Hello")
     # Main parser
     parser = argparse.ArgumentParser(
         prog="dataqc",
@@ -527,16 +524,14 @@ def main_subparser():
         "interface to dataqc package",
         epilog="Use `dataqc subcommand -h` for details and options on each command.")
     
-
     subparsers = parser.add_subparsers(title="subcommands", 
         help="one of the subprogram in dataqc",
         )
 
-    process(subparsers)
-    plot(subparsers)
-    avail(subparsers)
-    windfilter(subparsers)
-
+    # Call all functions registered as subcommands
+    for cmd in SUBCOMMANDS.values():
+        cmd(subparsers)
+    
     # If User enters only 'dataqc' we show help of 
     # main parser which lists the subprograms
     if len(sys.argv) < 2:
@@ -544,7 +539,6 @@ def main_subparser():
     
     # Otherwise we call the respective subroutine
     args = parser.parse_args()
-    #print(args)
     try:
         module_logger.setLevel(args.loglevel)
     except AttributeError:
@@ -556,6 +550,17 @@ def main_subparser():
     
     #print('Finish')
 
+
+SUBCOMMANDS = dict()
+def subcommand(func):
+    """
+    Decorator that registers functions as subcommands.
+    """
+    SUBCOMMANDS[func.__name__] = func
+    return func
+
+
+@subcommand
 def process(subparsers):
     process = subparsers.add_parser("process",
         parents=[commons_parser],
@@ -604,8 +609,9 @@ def process(subparsers):
             help="min and max frequency of bandpass before "+
             "amplitude analysis.",
             default=base.default_processing_params["amplitude_frequencies"] )
-    #return process
+    
 
+@subcommand
 def plot(subparsers):
     plot = subparsers.add_parser("plot",
         parents=[commons_parser],
@@ -640,8 +646,9 @@ def plot(subparsers):
             help=("start and end of time range you want to analyze"+ 
                     "Give as YYYY-MM-DDThh:mm:ss, endtime can be None to use current time."),
                     )
-    #return subparsers
+    
 
+@subcommand
 def avail(subparsers):
     avail = subparsers.add_parser("available",
         aliases=["avail"],
@@ -661,6 +668,7 @@ def avail(subparsers):
             default="year")
     
 
+@subcommand
 def windfilter(subparsers):
     windfilter = subparsers.add_parser("windfilter",
         aliases=["wind"],
