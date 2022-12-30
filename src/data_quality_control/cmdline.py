@@ -532,7 +532,31 @@ def main_subparser():
         help="one of the subprogram in dataqc",
         )
 
+    process(subparsers)
+    plot(subparsers)
+    avail(subparsers)
+    windfilter(subparsers)
 
+    # If User enters only 'dataqc' we show help of 
+    # main parser which lists the subprograms
+    if len(sys.argv) < 2:
+        parser.parse_args(["-h"])
+    
+    # Otherwise we call the respective subroutine
+    args = parser.parse_args()
+    #print(args)
+    try:
+        module_logger.setLevel(args.loglevel)
+    except AttributeError:
+        module_logger.setLevel("INFO")
+
+    module_logger.info("CLI-Arguments:\n" + 
+                "{}".format(args))
+    args.func(args)
+    
+    #print('Finish')
+
+def process(subparsers):
     process = subparsers.add_parser("process",
         parents=[commons_parser],
         description="Compute mean amplitude and spectra of seismic data",
@@ -580,9 +604,9 @@ def main_subparser():
             help="min and max frequency of bandpass before "+
             "amplitude analysis.",
             default=base.default_processing_params["amplitude_frequencies"] )
+    #return process
 
-
-
+def plot(subparsers):
     plot = subparsers.add_parser("plot",
         parents=[commons_parser],
         description="Create plots",
@@ -616,9 +640,9 @@ def main_subparser():
             help=("start and end of time range you want to analyze"+ 
                     "Give as YYYY-MM-DDThh:mm:ss, endtime can be None to use current time."),
                     )
+    #return subparsers
 
-
-
+def avail(subparsers):
     avail = subparsers.add_parser("available",
         aliases=["avail"],
         parents=[commons_parser],
@@ -637,7 +661,7 @@ def main_subparser():
             default="year")
     
 
-
+def windfilter(subparsers):
     windfilter = subparsers.add_parser("windfilter",
         aliases=["wind"],
         #parents=[commons_parser],
@@ -668,24 +692,177 @@ def main_subparser():
 
 
 
-    # If User enters only 'dataqc' we show help of 
-    # main parser which lists the subprograms
-    if len(sys.argv) < 2:
-        parser.parse_args(["-h"])
     
-    # Otherwise we call the respective subroutine
-    args = parser.parse_args()
-    #print(args)
-    try:
-        module_logger.setLevel(args.loglevel)
-    except AttributeError:
-        module_logger.setLevel("INFO")
 
-    module_logger.info("CLI-Arguments:\n" + 
-                "{}".format(args))
-    args.func(args)
+
+# def main_subparser():
+#     #print("Hello")
+#     # Main parser
+#     parser = argparse.ArgumentParser(
+#         prog="dataqc",
+#         description="Command line " + 
+#         "interface to dataqc package",
+#         epilog="Use `dataqc subcommand -h` for details and options on each command.")
     
-    #print('Finish')
+
+#     subparsers = parser.add_subparsers(title="subcommands", 
+#         help="one of the subprogram in dataqc",
+#         )
+
+
+#     process = subparsers.add_parser("process",
+#         parents=[commons_parser],
+#         description="Compute mean amplitude and spectra of seismic data",
+#         )
+#     process.set_defaults(func=run_processing)
+#     process.add_argument("nslc_code", type=str, 
+#             help=("station code {network}.{station}.{location}.{channel}," +
+#             "may contain glob-style wildcards"))
+#     process.add_argument("inventory_routing_type", type=str,
+#             help="routing client for inventory",
+#             choices=["eida-routing", "iris-federator"]
+#             )
+#     process.add_argument("sds_root", type=Path,
+#             help="root-directory of sds-filesystem")
+#     process.add_argument("starttime", type=UTC, 
+#             help=("beginning of time range you want to analyze" + 
+#                     "Give as YYYY-MM-DDThh:mm:ss"))
+#     process.add_argument("endtime", type=UTC, 
+#             help="end of time range you want to analyze")
+
+#     process.add_argument("-o", "--outdir", type=Path, 
+#             help="where to put the processed data",
+#             default=".")
+#     process.add_argument("--fileunit", type=str, 
+#             help="where to put the processed data",
+#             default="year")
+
+#     process.add_argument("--overlap", type=int,
+#             help="seconds by which the data is extended beyond time range "+
+#                     "to accomodate filter effects etc.",
+#             default=base.default_processing_params["overlap"])
+#     process.add_argument("--proclen", type=int,
+#             help="seconds to process at once, ideally duration of " +
+#                     "the data file",
+#             default=base.default_processing_params["proclen_seconds"])
+#     process.add_argument("--winlen-in-s", type=int,
+#             help="time over which amplitude and spectra are computed," +
+#             " in seconds",
+#             default=base.default_processing_params["winlen_seconds"])
+#     process.add_argument("--nperseg", type=int,
+#             help="length of segment for spectral estimation "+
+#             "(scipy.signal.welch), in samples ",
+#             default=base.default_processing_params["nperseg"])
+#     process.add_argument("--amplitude-frequencies", type=float, nargs=2,
+#             help="min and max frequency of bandpass before "+
+#             "amplitude analysis.",
+#             default=base.default_processing_params["amplitude_frequencies"] )
+
+
+
+#     plot = subparsers.add_parser("plot",
+#         parents=[commons_parser],
+#         description="Create plots",
+#         )
+#     plot.set_defaults(func=run_plot)
+#     plot.add_argument("nslc_code", type=str, 
+#             help=("station code {network}.{station}.{location}.{channel}," +
+#                 "May *not* contain wildcards!"))
+#     plot.add_argument("datadir", type=Path, 
+#             help="where to look for processed data",
+#             default=".")
+    
+#     plot.add_argument("--fileunit", type=str, 
+#             help="where to put the processed data",
+#             default="year")
+#     plot.add_argument("-o", "--figdir", type=Path,
+#             help="where to store figures",
+#             default=".")
+#     plot.add_argument("-s", "--show",
+#         action="store_true",
+#         help="if given spectrogram plot is opened.")
+
+#     group = plot.add_mutually_exclusive_group()
+#     group.add_argument("-l", "--timelist", type=argparse.FileType("r"), 
+#             help=("Plot spectrograms using time list." + 
+#                     "Can be used as flag to read times from stdin or" + 
+#                     "given a file with datetimes."),
+#             nargs="?",
+#             const=sys.stdin)
+#     group.add_argument("-r", "--timerange", type=UTC, nargs=2,
+#             help=("start and end of time range you want to analyze"+ 
+#                     "Give as YYYY-MM-DDThh:mm:ss, endtime can be None to use current time."),
+#                     )
+
+
+
+#     avail = subparsers.add_parser("available",
+#         aliases=["avail"],
+#         parents=[commons_parser],
+#         description="Print available HDF5 files and "+ 
+#             "covered time range for given code in datadir",
+#         )
+#     avail.set_defaults(func=run_available)
+#     avail.add_argument("nslc_code", type=str, 
+#         help=("station code {network}.{station}.{location}.{channel}," +
+#             "may contain glob-style wildcards"))
+#     avail.add_argument("datadir", type=Path, 
+#             help="where to look for processed data",
+#             default=".")
+#     avail.add_argument("--fileunit", type=str, 
+#             help="where to put the processed data",
+#             default="year")
+    
+
+
+#     windfilter = subparsers.add_parser("windfilter",
+#         aliases=["wind"],
+#         #parents=[commons_parser],
+#         description="Interpolate and extract wind"
+#         )
+#     windfilter.set_defaults(func=run_windfilter)
+#     windfilter.add_argument("fname", type=Path, 
+#         help=("name of wind data file" +
+#             "."))
+#     windfilter.add_argument("stime", type=UTC, 
+#             help="starttime",
+#             )
+#     windfilter.add_argument("etime", type=UTC, 
+#             help="endtime",
+#             )
+#     windfilter.add_argument("delta", type=float, 
+#             help="increment of time axis to which wind data will" +
+#                     "be interpolated. In seconds." + 
+#                     "Should be same as window length.",
+#             )
+#     windfilter.add_argument("minspeed", type=float,
+#             help="Minimum windspeed")
+#     windfilter.add_argument("maxspeed", type=float,
+#             help="Maximum windspeed",
+#             nargs="?")
+#     windfilter.add_argument("out", type=argparse.FileType("w"),
+#             nargs="?", default=sys.stdout)
+
+
+
+#     # If User enters only 'dataqc' we show help of 
+#     # main parser which lists the subprograms
+#     if len(sys.argv) < 2:
+#         parser.parse_args(["-h"])
+    
+#     # Otherwise we call the respective subroutine
+#     args = parser.parse_args()
+#     #print(args)
+#     try:
+#         module_logger.setLevel(args.loglevel)
+#     except AttributeError:
+#         module_logger.setLevel("INFO")
+
+#     module_logger.info("CLI-Arguments:\n" + 
+#                 "{}".format(args))
+#     args.func(args)
+    
+#     #print('Finish')
 
 if __name__ == "__main__":
     #parse_argument()
