@@ -11,13 +11,16 @@ outdir='output'
 sds_root='../sample_sds'
 inventory_routing_type='eida-routing'
 
-
 startdate="2020-12-20"
 enddate="2021-01-10"
 
 logfilename="log/test_processing.log"
+loglevel="INFO"
 
 conda activate dataqc
-dataqc process -o $outdir $nscl_code \
+dataqc process -o $outdir \
+ $nscl_code \
  $inventory_routing_type $sds_root \
- $startdate $enddate
+ $startdate $enddate \
+    --loglevel $loglevel \
+ --logfile $logfilename \

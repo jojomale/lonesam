@@ -7,10 +7,6 @@ def create_logger():
     """
     Manage logging behavior
 
-    Warning
-    ---------
-    Filenames (and paths probably too) must not contain "." otherwise
-    the automatic deletion of backup files does not work
 
     Notes
     -----------

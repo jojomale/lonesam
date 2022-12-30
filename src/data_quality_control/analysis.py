@@ -26,7 +26,7 @@ import logging
 logger = dqclogging.create_logger()
 module_logger = logging.getLogger(logger.name+'.analysis')
 
-
+wildcards = ["?", "*"]
 
 class Analyzer():
     def __init__(self, 
@@ -195,8 +195,12 @@ class Analyzer():
             only required if `starttimes` is UTCDateTime. End of time
             range for data selection.
         """
-
         
+        if any([char in self.stationcode for char in wildcards]):
+            raise RuntimeError("Station code {} ".format(self.stationcode) + 
+                "contains wildcard characters. " + 
+                "Can only get data for defined netw.stat.loc.chan!")
+
         if isinstance(starttimes, UTC):
             if not isinstance(endtime, UTC):
                 endtime = UTC()
@@ -397,7 +401,7 @@ class Analyzer():
         ax.set_xlabel("time")
         ax.set_ylabel("frequency, Hz")
         return fig
-        
+
 
     def plot3d(self):
         return self.plot3d_amplitudes(), self.plot3d_psds()

@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 from obspy.core import UTCDateTime as UTC
 
+from matplotlib import pyplot as plt
+
 from data_quality_control import analysis, dqclogging
 
 # Set verbosity: "ERROR" < "WARNING" < "INFO" < "DEBUG"
@@ -72,7 +74,9 @@ def main():
     
 
     fig_cont = lyza.plot_spectrogram()
-    fig_cont.savefig(figdir.joinpath("spectrogram_timerange.png"))
+    fig_cont.suptitle("time range")
+    figfiles = [figdir.joinpath("spectrogram_timerange.png")]
+    fig_cont.savefig(figfiles[-1])
 
 
     fig_amp, fig_psd = lyza.plot3d()
@@ -84,7 +88,8 @@ def main():
     # Save 3d-Figures as html-files. Can be opened in browser.
     for flabel, fig in zip(["amp", "psd"], [fig_amp, fig_psd]):
         html = fig.to_html(include_mathjax="cdn")
-        with open(figdir.joinpath("fig3d_{}.html".format(flabel)), "w") as f:
+        figfiles.append(figdir.joinpath("fig3d_{}.html".format(flabel)))
+        with open(figfiles[-1], "w") as f:
             f.write(html)
 
 
@@ -92,15 +97,18 @@ def main():
     tlist = create_random_timelist(av_stime, av_etime, 20)
     DATA = lyza.get_data(tlist)
     print("Loaded data for time list", DATA, "\n")
-    print(lyza.psds.shape)
-    assert lyza.psds.shape[0] == len(tlist), \
-        "lyza.psds.shape[0] does not match len(tlist)"
-
+    #print(lyza.psds.shape)
+    
     fig_tlist = lyza.plot_spectrogram()
-    fig_tlist.savefig(figdir.joinpath("spectrogram_timelist.png"))
+    fig_tlist.suptitle("time list")
+    figfiles.append(figdir.joinpath("spectrogram_timelist.png"))
+    fig_tlist.savefig(figfiles[-1])
 
-    fig_cont.show()
-    fig_tlist.show()
+    # fig_cont.show()
+    # fig_tlist.show()
+    plt.show()
+    for f in figfiles:
+        assert f.exists(), "Figure {} does not exist".format(str(f))
 
 if __name__=="__main__":
     main()
