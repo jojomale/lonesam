@@ -318,29 +318,86 @@ class Analyzer():
     #     return t
 
 
-    def plot_spectrogram(self, ax=None, **kwargs):
+    def plot_spectrogram(self, ax=None, func=None, 
+            colorbarlabel="",
+             **kwargs):
+        """
+        Plot power spectral densities as spectrogram.
+
+        We use matplotlibs `pcolormesh` to plot the PSDs
+        in a spectrogram-like way, i.e. time on x-axis, 
+        frequency on y-axis and PSD as color.
+
+        Parameters
+        -----------
+        ax : matplotlib.axes
+            axes to plot in
+        func : callable
+            modifies PSDS as `func(self.psds.T)` before plotting.
+            If not given, we plot `np.log10(self.psds.T * 1e9**2)`
+            which is  $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$.
+        colorbarlabel : str [""]
+            set colorbar label. Useful in combination with `func`
+            to set correct units for color scale.
+        kwargs : 
+            keyword arguments passed to pcolormesh. 
+            `vmax` can be callable to set `vmax=vmax(Z)`.
+            If not given, we use: 
+            `cmap=plt.cm.afmhot`,
+            `shading=auto`,
+            `vmax=np.nanmax(Z)`
+        """
+
+        if not "cmap" in kwargs:
+            kwargs["cmap"] = plt.cm.afmhot
+        if not "shading" in kwargs:
+            kwargs["shading"] = "auto"
+   
         if ax is None:
             fig, ax = plt.subplots(1,1)
         else:
             fig = ax.get_figure()
+
         if self.timerange:
             tax = self.timeax_psd
         else:
             tax = np.arange(self.timeax_psd.size)
-        pmesh = ax.pcolormesh(tax, self.freqax, 
-                            np.log10(self.psds.T*1e9**2), 
-                            shading="auto",
+            nticks = 10
+            dtick = tax.size // nticks
+            xticks = tax[::dtick]
+            xticklabels = self.timeax_psd[::dtick]
+
+        if func:
+            Z = func(self.psds.T)
+            colorbarlabel = colorbarlabel
+        else:
+            Z = np.log10(self.psds.T*1e9**2)
+            colorbarlabel = r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$'
+        
+        if not "vmax" in kwargs:
+            kwargs["vmax"] = 0.9*np.nanmax(Z)
+        elif callable(kwargs["vmax"]):
+            kwargs["vmax"] = kwargs["vmax"](Z)
+        else:
+            kwargs["vmax"] = kwargs["vmax"]
+        self.logger.debug("Kwargs passed to pcolormesh are {}".format(kwargs))
+
+        pmesh = ax.pcolormesh(tax, self.freqax, Z,
                             **kwargs)
+
         if not self.timerange:
-            ax.set_xticklabels(self.timeax_psd)
+            self.logger.debug("Setting xticks")
+            ax.set_xticks(xticks)
+            ax.set_xticklabels(xticklabels)
         fig.autofmt_xdate()
+
         plt.colorbar(pmesh, ax=ax, 
-                    #label=r'power spectral density, dB($\frac{m^2}{s^2\cdot Hz}$)'
-                    label=r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz}$)')        
+                    label=colorbarlabel
+                    )        
         ax.set_xlabel("time")
         ax.set_ylabel("frequency, Hz")
         return fig
-
+        
 
     def plot3d(self):
         return self.plot3d_amplitudes(), self.plot3d_psds()
