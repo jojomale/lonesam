@@ -382,13 +382,11 @@ class DataqcMain():
 
 
 def run_processing(args):
-    t = time.time()
-    #print(args)
+    #
     init_args = vars(args)
 
     proc_args = {k: init_args.pop(k) for k in 
         ['starttime', 'endtime']}
-    #print(init_args)
 
     loglevel =  init_args.pop("loglevel")
     dqclogging.configure_handlers(base.logger, loglevel, 
@@ -404,16 +402,10 @@ def run_processing(args):
     except Exception as e:
         processor.logger.exception(e)
 
-    runtime = timedelta(seconds=time.time()-t) 
-    processor.logger.info("Finished. Took {} h".format(runtime))
-
 
 def run_available(args):
-#     print("Available")
-#     print(args)
-#     print(vars(args))
-#     print(vars(args)["fileunit"])
-    init_args = {k: args.__getattribute__(k) for k in 
+    args = vars(args)
+    init_args = {k: args[k] for k in 
         ["datadir", "nslc_code", "fileunit"]}
     
     lyza = analysis.Analyzer(**init_args)
@@ -421,7 +413,6 @@ def run_available(args):
     files = lyza.get_available_datafiles()
     print("\nAll available files in {}:\n".format(lyza.datadir),
              files, "\n")
-    
     
     av_stime, av_etime = lyza.get_available_timerange()
     print("Available time range in {}\n{} - {}\n".format(
@@ -453,17 +444,15 @@ def run_plot(args):
         starttime, endtime = lyza.get_available_timerange()
 
     DATA = lyza.get_data(starttime, endtime)
-    print(DATA)
+    module_logger.debug("DATA contains {}".format(DATA))
 
     figname = "{}_{}-{}".format(lyza.stationcode, 
                         lyza.starttime.datetime, 
                         lyza.endtime.datetime)
-    print("FIGNAME", figname)
+    module_logger.debug("Figure name base: {}".format(figname))
     fig_cont = lyza.plot_spectrogram()
-    print(fig_cont)
     fig_cont.savefig(figdir.joinpath("{}_spectrogram.png".format(figname)))
     fig_amp, fig_psd = lyza.plot3d()
-    #print(fig_amp.to_html())
     for flabel, fig in zip(["amp", "psd"], [fig_amp, fig_psd]):
         html = fig.to_html(include_mathjax="cdn")
         with open(figdir.joinpath(
@@ -476,7 +465,6 @@ def run_plot(args):
 def run_windfilter(args):
     args = vars(args)
     out = args.pop("out")
-    print(out)
     func = args.pop("func")
     speed = {k : args.pop(k) for k in 
             ["minspeed", "maxspeed"]}
@@ -484,8 +472,6 @@ def run_windfilter(args):
         speed["maxspeed"] = 99999.
     x, f = timelist.read_interp_winddata(**args)
     x = x[np.logical_and(f>=speed["minspeed"], f<=speed["maxspeed"])]
-    print(x)
-    print(out)
     out.write("\n".join([str(UTC(xi)) for xi in x]))
 
 
@@ -517,6 +503,7 @@ def main():
 
 
 def main_subparser():
+    t = time.time()
     # Main parser
     parser = argparse.ArgumentParser(
         prog="dataqc",
@@ -544,10 +531,15 @@ def main_subparser():
     except AttributeError:
         module_logger.setLevel("INFO")
 
-    module_logger.info("CLI-Arguments:\n" + 
-                "{}".format(args))
+    module_logger.info(
+        "CLI-Arguments for {}:\n".format(sys.argv[1]) + 
+        "{}".format(args))
+    
     args.func(args)
     
+    runtime = timedelta(seconds=time.time()-t) 
+    module_logger.info("Finished. Took {} h".format(runtime))
+
     #print('Finish')
 
 
