@@ -21,7 +21,7 @@ fmin, fmax = (4, 14)
 nperseg = 2048
 winlen_in_s = 3600
 proclen = 24*3600
-sampling_rate = 100
+sampling_rate = 20
 
 outdir = Path('../sample_output/run_processing')
 

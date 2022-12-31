@@ -1,11 +1,11 @@
 nscl_code=*.*..BHZ
-overlap=60 #3600
-fmin=4
-fmax=(4, 14)
-nperseg=2048
-winlen_in_s=3600
-proclen=24*3600
-sampling_rate=100
+# overlap=60 #3600
+# fmin=4
+# fmax=(4, 14)
+# nperseg=2048
+# winlen_in_s=3600
+# proclen=24*3600
+sampling_rate=20
 
 outdir='output'
 sds_root='../sample_sds'
@@ -24,3 +24,4 @@ dataqc process -o $outdir \
  $startdate $enddate \
     --loglevel $loglevel \
  --logfile $logfilename \
+ --sampling_rate $sampling_rate

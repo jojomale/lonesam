@@ -54,7 +54,7 @@ default_processing_params = dict(
     nperseg = 2048,
     winlen_seconds = 3600,
     proclen_seconds = 24*3600,
-    sampling_rate = 100
+    sampling_rate = 20
 )
 
 
