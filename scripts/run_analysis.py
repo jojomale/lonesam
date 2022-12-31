@@ -27,10 +27,10 @@ endtime = UTC("2021-01-10")
 
 
 # Data source
-datadir = Path('../sample_output/run_processing')
-figdir = Path("../sample_output/run_processing/figures/")
+datadir = Path('../sample_output/scripts')
+figdir = Path("../sample_output/scripts/figures/")
 
-logfilename = "../sample_output/run_processing/log/processing.log"
+logfilename = "../sample_output/scripts/log/analysis.log"
 
 # Set verbosity: "ERROR" < "WARNING" < "INFO" < "DEBUG"
 dqclogging.configure_handlers(analysis.logger, "INFO", "DEBUG", 
@@ -57,10 +57,10 @@ def main():
         starttime, endtime), DATA, "\n")
     print(lyza.timeax_psd.shape)
     
+    figdir.mkdir(exist_ok=True)
 
     fig_cont = lyza.plot_spectrogram()
     fig_cont.savefig(figdir.joinpath("spectrogram_timerange.png"))
-
 
     fig_amp, fig_psd = lyza.plot3d()
     
