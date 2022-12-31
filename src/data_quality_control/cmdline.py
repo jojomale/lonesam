@@ -34,10 +34,12 @@ from matplotlib.pyplot import show
 from obspy.core import UTCDateTime as UTC
 
 from . import base, sds_db, dqclogging, analysis, timelist
+from .util import FNAME_FMTS
 
 logger = dqclogging.create_logger()
 module_logger = dqclogging.logging.getLogger(logger.name+'.cmdline')
 
+fileunits = list(FNAME_FMTS.keys())
 
 commons_parser = argparse.ArgumentParser(add_help=False)
 commons_parser.add_argument("--loglevel", type=str,
@@ -248,7 +250,8 @@ def process(subparsers):
             help="where to put the processed data",
             default=".")
     process.add_argument("--fileunit", type=str, 
-            help="where to put the processed data",
+            choices=fileunits,
+            help="Time span per HDF5-file. ",
             default="year")
 
     process.add_argument("--overlap", type=int,
@@ -271,6 +274,10 @@ def process(subparsers):
             help="min and max frequency of bandpass before "+
             "amplitude analysis.",
             default=base.default_processing_params["amplitude_frequencies"] )
+    process.add_argument("--sampling_rate", "--sr", type=float,
+            help="Sampling rate at which data are processed. "+
+            "Data are resampled if original SR is different.",
+            default=base.default_processing_params["sampling_rate"] )
     
 
 @subcommand
@@ -288,7 +295,8 @@ def plot(subparsers):
             default=".")
     
     plot.add_argument("--fileunit", type=str, 
-            help="where to put the processed data",
+            choices=fileunits,
+            help="Time span per HDF5-file. ",
             default="year")
     plot.add_argument("-o", "--figdir", type=Path,
             help="where to store figures",
