@@ -50,7 +50,7 @@ print(pp)
 network = 'GR'
 station = 'BFO'
 location = ''
-channel = 'HHZ'
+channel = 'BHZ'
 
 outdir = '.'
 

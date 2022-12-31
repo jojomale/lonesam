@@ -107,7 +107,7 @@ Usage
 Process raw data from commandline:
 
 ```bash
-dataqc -n GR -s BFO -c HHZ --sds-root sample_sds/ -v INFO 2020-360 2021-005 tmp_data/
+dataqc -n GR -s BFO -c BHZ --sds-root sample_sds/ -v INFO 2020-360 2021-005 tmp_data/
 ```
 of from script in scripts/run_processing.py
 

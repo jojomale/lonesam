@@ -20,7 +20,7 @@ from data_quality_control import analysis, dqclogging
 network = 'GR'
 station = 'BFO'
 location = ''
-channel = 'HHZ'
+channel = 'BHZ'
 
 # Data source
 datadir = Path('output')

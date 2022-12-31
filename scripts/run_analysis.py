@@ -16,7 +16,7 @@ from data_quality_control import analysis, dqclogging
 network = 'GR'
 station = 'BFO'
 location = ''
-channel = 'HHZ'
+channel = 'BHZ'
 stationcode = "{}.{}.{}.{}".format(network, station, 
                                    location, channel)
 

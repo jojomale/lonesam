@@ -50,7 +50,7 @@ name than the name of the package in the setup (`dataqc`).
     For selection, we also might require an intermediate, manual step, although we could probably
     build something standardized for simpler selection rules.
 
-- Treat error due to merging of different sampling rates (GR.BFO..HHZ 30-Nov-2011)
+- Treat error due to merging of different sampling rates (GR.BFO..BHZ 30-Nov-2011)
 
 
 # CLI

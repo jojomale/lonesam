@@ -13,8 +13,8 @@ from data_quality_control import sds_db, dqclogging
 # network = 'GR'
 # station = 'BFO'
 # location = ''
-# channel = 'HHZ'
-nscl_code = "GR.BFO..HHZ"
+# channel = 'BHZ'
+nscl_code = "GR.BFO..BHZ"
 
 overlap = 60 #3600
 fmin, fmax = (4, 14)

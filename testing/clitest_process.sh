@@ -1,4 +1,4 @@
-nscl_code=*.*..HHZ
+nscl_code=*.*..BHZ
 overlap=60 #3600
 fmin=4
 fmax=(4, 14)

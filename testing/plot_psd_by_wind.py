@@ -11,7 +11,7 @@ analysis.logger.setLevel("INFO")
 network = 'GR'
 station = 'BFO'
 location = ''
-channel = 'HHZ'
+channel = 'BHZ'
 
 # Data source
 datadir = Path('output')
