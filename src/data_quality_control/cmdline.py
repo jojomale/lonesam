@@ -1,27 +1,28 @@
 """
-Command line interface for accessing the old processing module.
-
-Start a processing job via CLI. 
-
-Adaptation to newer version should be possible.
+Command line interface to dataqc suite.
 
 Usage
 -------
 .. code-block:: console
 
-        dataqc [-h] [-n NETWORK] [-s STATION] [-c CHANNEL] 
-                [--sds-root SDS_ROOT] 
-                [--inventory-routing-type {eida-routing,iris-federator}]
-                [--overlap OVERLAP] [--proclen PROCLEN] 
-                [--winlen-in-s WINLEN_IN_S] [--nperseg NPERSEG]
-                [--amplitude-frequencies AMPLITUDE_FREQUENCIES AMPLITUDE_FREQUENCIES] 
-                [--configfile CONFIGFILE] [-v {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
-                startdate enddate outdir
-
+    dataqc [-h] {process,plot,available,avail,windfilter,wind} args
+    
 
 Optional arguments override settings in configfile. If a parameter
 is not set via opt. arg. or is defined in config-file, we use
-default values.
+default values defined in `dataqc.base.default_processing_params`.
+
+
+
+Implementation notes
+---------------------------
+- subcommands are implemented using argparse.subparsers, but to 
+    improve legibility of the code subparsers are defined in 
+    functions marked by decorator `@subcommand`.
+- for each subparser, there is a function `run_subcommand` 
+    containing the actual program.
+- Functions are not intended to use outside of this module
+
 """
 
 import sys
@@ -56,6 +57,19 @@ commons_parser.add_argument("--append_logfile", #type=bool,
 
 
 def run_processing(args):
+    """
+    Run SDS processing job based on cli-arguments.
+
+    Based on script `scripts/run_processing.py`. 
+    Computes mean amplitudes and power spectral densities
+    of seismic data for given station code using 
+    `dataqc.sds_db`. Results are stored in HDF5-files.
+
+    Parameters
+    -----------
+    args : argparse.Namespace
+        parsed cli arguments
+    """
     #
     init_args = vars(args)
 
@@ -78,6 +92,19 @@ def run_processing(args):
 
 
 def run_available(args):
+    """
+    Requests available HDF5 data based on cli-arguments.
+    
+    Uses `dataqc.analysis.Analyzer.get_all_available_data()`.
+    Expects station code and data directory. Station code can
+    contain wildcards.
+    
+    Parameters
+    -----------
+    args : argparse.Namespace
+        parsed cli arguments
+    """
+    
     args = vars(args)
     init_args = {k: args[k] for k in 
         ["datadir", "nslc_code", "fileunit"]}
@@ -95,9 +122,15 @@ def run_available(args):
 
 
 def run_plot(args):
-    #args_dict = vars(args)
-    
-    #args = vars(args)
+    """
+    Create spectrograms and plotly-figures from cli-arguments.
+
+    Parameters
+    -----------
+    args : argparse.Namespace
+        parsed cli arguments
+    """
+
     figdir = args.figdir
     init_args = {k: args.__getattribute__(k) for k in ["datadir", "nslc_code", "fileunit"]}
     
@@ -367,250 +400,6 @@ def windfilter(subparsers):
             nargs="?")
     windfilter.add_argument("out", type=argparse.FileType("w"),
             nargs="?", default=sys.stdout)
-
-
-
-    
-
-class DataqcMain():
-    def __init__(self) -> None:
-        parser = argparse.ArgumentParser(
-                prog="dataqc",
-                description="Command line " + 
-                        "interface to dataqc package",
-                usage="dataqc command options",
-                epilog="Use `dataqc subcommand -h` for details and options on each command.")
-
-        parser.add_argument("command", help="commands")
-        
-        
-        # parser.add_argument("-v","--version", help="show version and   exit", action="version", version='1.0')
-        print("args",parser.parse_args())
-        args = parser.parse_args(sys.argv[1:2])
-        print("args",args)
-        if not hasattr(self, args.command):
-            print('Unrecognized subcommand')
-            parser.print_help()
-            exit(1)
-       
-        # use dispatch pattern to invoke method with same name
-        getattr(self, args.command)()
-
-
-    def process(self):
-        parser = argparse.ArgumentParser(
-                description="Compute mean amplitude and spectra of seismic data"
-        )
-        parser.add_argument("nslc_code", type=str, 
-            help=("station code {network}.{station}.{location}.{channel}," +
-                "may contain glob-style wildcards"))
-        parser.add_argument("inventory_routing_type", type=str,
-                help="routing client for inventory",
-                choices=["eida-routing", "iris-federator"]
-                )
-        parser.add_argument("sds_root", type=Path,
-                help="root-directory of sds-filesystem")
-        parser.add_argument("starttime", type=UTC, 
-                help=("beginning of time range you want to analyze" + 
-                        "Give as YYYY-MM-DDThh:mm:ss"))
-        parser.add_argument("endtime", type=UTC, 
-                help="end of time range you want to analyze")
-
-        parser.add_argument("-o", "--outdir", type=Path, 
-                help="where to put the parsered data",
-                default=".")
-        parser.add_argument("--fileunit", type=str, 
-                help="where to put the processed data",
-                default="year")
-
-        parser.add_argument("--overlap", type=int,
-                help="seconds by which the data is extended beyond time range "+
-                        "to accomodate filter effects etc.",
-                default=base.default_processing_params["overlap"])
-        parser.add_argument("--proclen", type=int,
-                help="seconds to process at once, ideally duration of " +
-                        "the data file",
-                default=base.default_processing_params["proclen_seconds"])
-        parser.add_argument("--winlen-in-s", type=int,
-                help="time over which amplitude and spectra are computed," +
-                " in seconds",
-                default=base.default_processing_params["winlen_seconds"])
-        parser.add_argument("--nperseg", type=int,
-                help="length of segment for spectral estimation "+
-                "(scipy.signal.welch), in samples ",
-                default=base.default_processing_params["nperseg"])
-        parser.add_argument("--amplitude-frequencies", type=float, nargs=2,
-                help="min and max frequency of bandpass before "+
-                "amplitude analysis.",
-                default=base.default_processing_params["amplitude_frequencies"] )
-
-        # parser.add_argument("-f", "--force-new-file",
-        #         action="store_true",
-        #         help="overrides existing files if given",)
-        
-        parser.add_argument("--loglevel", type=str,
-                choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                help="set logging level",
-                default="INFO")
-        parser.add_argument("--logfile", type=Path,
-                help="Give name for logfile",
-                default="dataqc_plot.log")
-        parser.add_argument("--append_logfile", #type=bool,
-                action='store_false', 
-                #const=True, default=False, nargs="?"
-                )
-        args = parser.parse_args(sys.argv[2:])
-        
-        run_processing(args)
-
-
-    def available(self):
-        parser = argparse.ArgumentParser(
-                description="Print available HDF5 files and covered time range for given code in datadir"
-        )
-        parser.add_argument("nslc_code", type=str, 
-            help=("station code {network}.{station}.{location}.{channel}," +
-                "may contain glob-style wildcards"))
-        parser.add_argument("datadir", type=Path, 
-                help="where to look for processed data",
-                default=".")
-        parser.add_argument("--fileunit", type=str, 
-                help="where to put the processed data",
-                default="year")
-        args = parser.parse_args(sys.argv[2:])
-        print(args)
-        run_available(args)
-
-
-    def plot(self):
-        parser = argparse.ArgumentParser(
-                description="Plot spectrogram and/or amplitude"
-        )
-        parser.add_argument("nslc_code", type=str, 
-            help=("station code {network}.{station}.{location}.{channel}," +
-                "may contain glob-style wildcards"))
-        parser.add_argument("datadir", type=Path, 
-                help="where to look for processed data",
-                default=".")
-        
-        parser.add_argument("--fileunit", type=str, 
-                help="where to put the processed data",
-                default="year")
-
-        parser.add_argument("--figdir", type=Path,
-                help="where to store figures",
-                default=".")
-
-        parser.add_argument("--loglevel", type=str,
-                    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                    help="set logging level",
-                    default="INFO")
-        parser.add_argument("--logfile", type=Path,
-                help="Give name for logfile",
-                default="dataqc_plot.log")
-        parser.add_argument("--append_logfile", #type=bool,
-                action='store_false', 
-                #const=True, default=False, nargs="?"
-                )
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument("-l", "--timelist", type=argparse.FileType("r"), 
-                help=("Plot spectrograms using time list." + 
-                        "Can be used as flag to read times from stdin or" + 
-                        "given a file with datetimes."),
-                nargs="?",
-                const=sys.stdin)
-        group.add_argument("-r", "--timerange", type=UTC, nargs=2,
-                help=("start and end of time range you want to analyze"+ 
-                        "Give as YYYY-MM-DDThh:mm:ss, endtime can be None to use current time."),
-                        )
-        args = parser.parse_args(sys.argv[2:])
-        print(args)
-        if args.timerange:
-            print("timerange")
-        elif args.timelist:
-            print("timelist")
-        else:
-            print("Nothing")
-        run_plot(args)
-
-
-    def windfilter(self):
-        parser = argparse.ArgumentParser(
-                description="Interpolate and extract wind"
-        )
-        parser.add_argument("fname", type=Path, 
-            help=("name of wind data file" +
-                "."))
-        parser.add_argument("stime", type=UTC, 
-                help="starttime",
-                )
-        parser.add_argument("etime", type=UTC, 
-                help="endtime",
-                )
-        parser.add_argument("delta", type=float, 
-                help="increment of time axis to which wind data will" +
-                        "be interpolated. In seconds." + 
-                        "Should be same as window length.",
-                )
-        parser.add_argument("minspeed", type=float,
-                help="Minimum windspeed")
-        parser.add_argument("maxspeed", type=float,
-                help="Maximum windspeed",
-                nargs="?")
-        parser.add_argument("out", type=argparse.FileType("w"),
-                nargs="?", default=sys.stdout)
-        args = parser.parse_args(sys.argv[2:])
-        run_windfilter(args)
-
-    def print(self):
-        parser = argparse.ArgumentParser(description="Test piping")
-        parser.add_argument("timerange", nargs="?", type=str)
-        parser.add_argument("timelist", 
-                type=argparse.FileType("r"),
-                help="list of items to print",
-                nargs="?",
-                default=sys.stdin)
-        # parser.add_argument("timerange", type=list,
-        #         help="time range", nargs=)
-        args = parser.parse_args(sys.argv[2:])
-        print(args)
-        print(args.timerange)
-        with args.timelist as input:
-            newlist = [line for line in input.readlines()]
-
-        print(newlist)
-
-    def experiment2(self):
-        parser = argparse.ArgumentParser(description="test variable input")
-        parser.add_argument("time", nargs="*", default=sys.stdin)
-        args = parser.parse_args(sys.argv[2:])
-
-        if len(args.time) == 1:
-            time = args.time[0]
-            if isinstance(time, argparse.FileType):
-                print("FileHandler")
-            else:
-                try:
-                    starttime = UTC(time)
-                    endtime = None
-                except TypeError:
-                    try:
-                        f = open(time, "r")
-                    except FileNotFoundError:
-                        raise RuntimeError("Wrong input. Assuming input is file named {}".format(time))
-        elif len(args.time) == 2:
-            try:
-                starttime = UTC(args.time[0])
-                endtime = UTC(args.time[1])
-            except TypeError:
-                raise RuntimeError("Wrong input format")
-        else:
-            raise RuntimeError("Illegal number of time arguments")
-
-                    
-        print(args)
-
-
 
 
 if __name__ == "__main__":
