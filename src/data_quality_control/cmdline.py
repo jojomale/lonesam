@@ -1,27 +1,29 @@
 """
-Command line interface to dataqc suite.
+Module defining the command line interface to dataqc suite.
 
-Usage
--------
+If you "just" want to use the commands please go to :doc:`cmdline`.
+
+Here, we document the functions defining the command line tool.
+The CLI is implemented using 
+`argparse <https://docs.python.org/3/library/argparse.html#>`_.
+
+General usage is:
+
 .. code-block:: console
 
     dataqc [-h] {process,plot,available,avail,windfilter,wind} args
     
 
-Optional arguments override settings in configfile. If a parameter
-is not set via opt. arg. or is defined in config-file, we use
-default values defined in `dataqc.base.default_processing_params`.
-
-
-
-Implementation notes
----------------------------
 - subcommands are implemented using argparse.subparsers, but to 
-    improve legibility of the code subparsers are defined in 
-    functions marked by decorator `@subcommand`.
+  improve legibility of the code subparsers are defined in 
+  functions marked by decorator `@subcommand`.
 - for each subparser, there is a function `run_subcommand` 
-    containing the actual program.
-- Functions are not intended to use outside of this module
+  containing the actual program.
+
+
+Warning
+---------------
+Functions are not intended for use outside of this module.
 
 """
 
@@ -54,20 +56,6 @@ commons_parser.add_argument("--append_logfile", #type=bool,
         action='store_false', 
         #const=True, default=False, nargs="?"
         )
-
-
-def my_func_that_return_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('foo', default=False, help='foo help')
-    parser.add_argument('bar', default=False)
-
-    subparsers = parser.add_subparsers()
-
-    subparser = subparsers.add_parser('install', help='install help')
-    subparser.add_argument('ref', type=str, help='foo1 help')
-    subparser.add_argument('--upgrade', action='store_true', default=False, help='foo2 help')
-
-    return parser
 
 
 def run_processing(args):
@@ -184,6 +172,16 @@ def run_plot(args):
 
 
 def run_windfilter(args):
+    """
+    Interpolate and extract list of datetimes 
+    based on observation value provided by file.
+
+    Values are first interpolated to indicated time spacing (`delta`)
+    which should correspond to the window length used for processing  
+    of the seimic data. The resulting list is then filtered for times
+    for which minspeed <= value <= maxspeed.
+    Designed usecase is a list of wind speed measurements.
+    """
     args = vars(args)
     out = args.pop("out")
     func = args.pop("func")
@@ -262,7 +260,10 @@ def main_subparser():
     parser = argparse.ArgumentParser(
         prog="dataqc",
         description="Command line " + 
-        "interface to dataqc package",
+        "interface to dataqc package.\n" + 
+        "Dataqc computes average amplitudes and "+
+        "power spectral densities of seismic data. Results are "+
+        "stored in HDF5 files to allow quick plotting.",
         epilog="Use `dataqc subcommand -h` for details and options on each command.")
     
     subparsers = parser.add_subparsers(title="subcommands", 
@@ -289,7 +290,8 @@ def subcommand(func):
 def process(subparsers):
     process = subparsers.add_parser("process",
         parents=[commons_parser],
-        description="Compute mean amplitude and spectra of seismic data",
+        description="Compute mean amplitude and spectra of seismic data " +
+            "and store results as HDF5. Requires internet access.",
         )
     process.set_defaults(func=run_processing)
     process.add_argument("nslc_code", type=str, 
@@ -345,12 +347,18 @@ def process(subparsers):
 def plot(subparsers):
     plot = subparsers.add_parser("plot",
         parents=[commons_parser],
-        description="Create plots",
+        description="Make 3 different figures of amplitudes and " + 
+        "power spectral densities. "+
+        "Plotly is used to create interactive 3D-views of amplitudes " +
+        "and PSDs with time. They are saved as html-files and can be " +
+        "viewed in a browser. " +
+        "PSDs are also plotted as classic spectrogram, saved as png and " +
+        "optionally shown as interactive matplotlib figure. "
         )
     plot.set_defaults(func=run_plot)
     plot.add_argument("nslc_code", type=str, 
             help=("station code {network}.{station}.{location}.{channel}," +
-                "May *not* contain wildcards!"))
+                "May *not* contain wildcards here!"))
     plot.add_argument("datadir", type=Path, 
             help="where to look for processed data",
             default=".")
@@ -360,11 +368,11 @@ def plot(subparsers):
             help="Time span per HDF5-file. ",
             default="year")
     plot.add_argument("-o", "--figdir", type=Path,
-            help="where to store figures",
+            help="Where to store figures.",
             default=".")
     plot.add_argument("-s", "--show",
         action="store_true",
-        help="if given spectrogram plot is opened.")
+        help="If given spectrogram plot is opened as matplotlib figure.")
 
     group = plot.add_mutually_exclusive_group()
     group.add_argument("-l", "--timelist", type=argparse.FileType("r"), 
@@ -374,8 +382,9 @@ def plot(subparsers):
             nargs="?",
             const=sys.stdin)
     group.add_argument("-r", "--timerange", type=UTC, nargs=2,
-            help=("start and end of time range you want to analyze"+ 
-                    "Give as YYYY-MM-DDThh:mm:ss, endtime can be None to use current time."),
+            help=("Start and end of time range you want to plot. "+ 
+                "Give as YYYY-MM-DDThh:mm:ss, " + 
+                "endtime can be None to use current time."),
                     )
     
 
@@ -385,7 +394,7 @@ def avail(subparsers):
         aliases=["avail"],
         parents=[commons_parser],
         description="Print available HDF5 files and "+ 
-            "covered time range for given code in datadir",
+            "covered time range for given code in datadir.",
         )
     avail.set_defaults(func=run_available)
     avail.add_argument("nslc_code", type=str, 
@@ -395,7 +404,7 @@ def avail(subparsers):
             help="where to look for processed data",
             default=".")
     avail.add_argument("--fileunit", type=str, 
-            help="where to put the processed data",
+            help="Time span per HDF5-file. ",
             default="year")
     
 
@@ -404,27 +413,38 @@ def windfilter(subparsers):
     windfilter = subparsers.add_parser("windfilter",
         aliases=["wind"],
         #parents=[commons_parser],
-        description="Interpolate and extract wind"
+        # "Extract list of datetimes based on observation value.
+        # Designed usecase is a list of wind speed measurements.
+        # "
+        description="Interpolate and extract list of datetimes "+
+        "based on observation value provided by file. " +
+        "Values are first interpolated to indicated time spacing (`delta`) " + 
+        "which should correspond to the window length used for processing " + 
+        "of the seimic data. The resulting list is then filtered for times "+
+        "for which minspeed <= value <= maxspeed. " +
+        "Designed usecase is a list of wind speed measurements."
         )
     windfilter.set_defaults(func=run_windfilter)
     windfilter.add_argument("fname", type=Path, 
-        help=("name of wind data file" +
-            "."))
+        help=("Name of wind data file." +
+            "File must contain 3 columns: " + 
+            "date, time and speed."))
     windfilter.add_argument("stime", type=UTC, 
-            help="starttime",
+            help="Start of time range as YYYY-MM-DDThh:mm:ss",
             )
     windfilter.add_argument("etime", type=UTC, 
-            help="endtime",
+            help="End of time range as YYYY-MM-DDThh:mm:ss",
             )
     windfilter.add_argument("delta", type=float, 
             help="increment of time axis to which wind data will" +
                     "be interpolated. In seconds." + 
-                    "Should be same as window length.",
+                    "Should be same as window length over which "+
+                    "amplitudes and psds were computed.",
             )
     windfilter.add_argument("minspeed", type=float,
-            help="Minimum windspeed")
+            help="Minimum windspeed to select.")
     windfilter.add_argument("maxspeed", type=float,
-            help="Maximum windspeed",
+            help="Maximum windspeed to select.",
             nargs="?")
     windfilter.add_argument("out", type=argparse.FileType("w"),
             nargs="?", default=sys.stdout)
