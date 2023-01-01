@@ -56,6 +56,20 @@ commons_parser.add_argument("--append_logfile", #type=bool,
         )
 
 
+def my_func_that_return_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('foo', default=False, help='foo help')
+    parser.add_argument('bar', default=False)
+
+    subparsers = parser.add_subparsers()
+
+    subparser = subparsers.add_parser('install', help='install help')
+    subparser.add_argument('ref', type=str, help='foo1 help')
+    subparser.add_argument('--upgrade', action='store_true', default=False, help='foo2 help')
+
+    return parser
+
+
 def run_processing(args):
     """
     Run SDS processing job based on cli-arguments.
@@ -205,27 +219,17 @@ def read_file_as_list_of_utcdatetimes(f):
 
 
 def main():
-    #DataqcMain()
-    main_subparser()
+    """
+    Executed if user calls a `dataqc` cli-command.
 
-
-def main_subparser():
+    - Measures execution time
+    - shows help 
+    - sets log level of module logger
+    - parses arguments
+    - calls respective subcommands
+    """
     t = time.time()
-    # Main parser
-    parser = argparse.ArgumentParser(
-        prog="dataqc",
-        description="Command line " + 
-        "interface to dataqc package",
-        epilog="Use `dataqc subcommand -h` for details and options on each command.")
-    
-    subparsers = parser.add_subparsers(title="subcommands", 
-        help="one of the subprogram in dataqc",
-        )
-
-    # Call all functions registered as subcommands
-    for cmd in SUBCOMMANDS.values():
-        cmd(subparsers)
-    
+    parser = main_subparser()
     # If User enters only 'dataqc' we show help of 
     # main parser which lists the subprograms
     if len(sys.argv) < 2:
@@ -246,6 +250,30 @@ def main_subparser():
     
     runtime = timedelta(seconds=time.time()-t) 
     module_logger.info("Finished. Took {} h".format(runtime))
+
+
+
+def main_subparser():
+    """
+    Returns main parser of cli `dataqc`. Collects subcommands as
+    subparsers.
+    """
+    
+    parser = argparse.ArgumentParser(
+        prog="dataqc",
+        description="Command line " + 
+        "interface to dataqc package",
+        epilog="Use `dataqc subcommand -h` for details and options on each command.")
+    
+    subparsers = parser.add_subparsers(title="subcommands", 
+        help="one of the subprogram in dataqc",
+        )
+
+    # Call all functions registered as subcommands
+    for cmd in SUBCOMMANDS.values():
+        cmd(subparsers)
+    
+    return parser
 
 
 SUBCOMMANDS = dict()

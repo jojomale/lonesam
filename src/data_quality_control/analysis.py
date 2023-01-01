@@ -339,17 +339,19 @@ class Analyzer():
         func : callable
             modifies PSDS as `func(self.psds.T)` before plotting.
             If not given, we plot `np.log10(self.psds.T * 1e9**2)`
-            which is  $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$.
+            which is `log10(nm^2/s^2/Hz`.
         colorbarlabel : str [""]
             set colorbar label. Useful in combination with `func`
             to set correct units for color scale.
-        kwargs : 
+        kwargs :  
             keyword arguments passed to pcolormesh. 
             `vmax` can be callable to set `vmax=vmax(Z)`.
             If not given, we use: 
             `cmap=plt.cm.afmhot`,
             `shading=auto`,
             `vmax=np.nanmax(Z)`
+
+
         """
 
         if not "cmap" in kwargs:

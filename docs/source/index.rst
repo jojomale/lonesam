@@ -11,6 +11,7 @@ Welcome to dataqc's documentation!
    :caption: Contents:
 
    modules
+   cmdline
    usage_demo
    missing_file_handling
    data_gap_handling

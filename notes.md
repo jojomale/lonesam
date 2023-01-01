@@ -100,3 +100,7 @@ As of now, I think, we would need to build a relatively complicated if-else and 
 sequence to distinguish all the above cases.
 Maybe it is easier to pass them all as optional arguments and if no optional ars are given,
 we plot the entire available time range
+
+
+# Docs
+- https://sphinx-argparse.readthedocs.io/en/stable/index.html
