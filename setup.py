@@ -16,7 +16,7 @@ here = pathlib.Path(__file__).parent.resolve()
 # Get the long description from the README file
 long_description = (here / 'README.md').read_text(encoding='utf-8')
 
-install_requires=['numpy','matplotlib','obspy', 'plotly', 'h5py']
+install_requires=['numpy','matplotlib','obspy', 'plotly', 'h5py>=3.3']
 
 # Set dependencies, depending on python version
 # if sys.version_info.minor >=7:

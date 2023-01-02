@@ -73,7 +73,7 @@ Installation
 Dependencies
 -------------
 - obspy
-- h5py
+- h5py >= 3.3
 - plotly
 
 We also use 
@@ -84,8 +84,10 @@ but they are "included" in obspy.
 
 Install
 --------
-Depending on how you manage your Python, you may want to install the 
-dependencies first.
+Depending on how you manage your Python, 
+you may want to install the 
+dependencies first, 
+activate your environments, etc.
 
 To install dataqc from BGR's SVN-server:
 
@@ -93,29 +95,128 @@ To install dataqc from BGR's SVN-server:
     $ pip install svn+svn://svn.hannover.bgr.de/station_quality_control/trunk/data_quality_control#egg=dataqc
     ```
 
-From source distribution:
+This can take some time because the repo is 
+quite large. If you only want the package, 
+you can download an archived version:
 
-    ```bash
-    $ pip install dataqc-1.0.0.tar.gz
-    ```
+ ```bash 
+  # Make directory for source archive
+  mkdir dataqc
+  cd dataqc
+  
+  # Download package as archive
+  svn export svn://svn.hannover.bgr.de/station_quality_control/trunk/data_quality_control/dist/dataqc-1.0.0.tar.gz
 
-Usage
-============
-Process raw data from commandline:
+  # Install 
+  pip install dataqc-1.0.0.tar.gz
+  ```
 
-```bash
-dataqc -n GR -s BFO -c BHZ --sds-root sample_sds/ -v INFO 2020-360 2021-005 tmp_data/
-```
-of from script in scripts/run_processing.py
 
-View processed data using scripts/analysis.py
+To obtain the repo including all sample data,
+scripts and tests use:
+
+  ```bash
+    $ mkdir my_repos
+    $ cd my_repos
+    $ svn checkout svn://svn.hannover.bgr.de/station_quality_control/trunk/data_quality_control#egg=dataqc
+    $ cd station_quality_control/trunk/data_quality_control
+  ```
+
+Then use either for simple installation:
+  
+  ```bash 
+    $ pip install .
+  ```
+
+or for an editable installation:
+
+  ```bash 
+    $ pip install -e .
+  ```
+
+
+Suggested editable installation with 
+conda including download of repo:
+
+  ```bash
+  conda create -n dataqc -c conda-forge \
+  pip obspy ipykernel h5py>=3.3 plotly
+  conda activate dataqc
+
+  mkdir my_svn_repos
+  cd my_svn_repos
+  svn checkout svn://svn.hannover.bgr.de/station_quality_control 
+  cd station_quality_control/trunk/data_quality_control
+  pip install -e . 
+  ```
+
 
 
 Documentation
 =================
-HTML-Documentation in SVN-repository:
+To view the HTML-Documentation open thi file 
+(in SVN-repository) in a browser:
 
 station_quality_control/trunk/data_quality_control/docs/build/html/index.html
 
 
 
+
+
+Usage
+============
+Core functionalities can be a accessed via CLI.
+For more flexiblity, we recommend using the
+API to build customized processing and plotting
+scipts. 
+
+
+API
+--------
+For starting points, take a look at:
+- station_quality_control/trunk/data_quality_control/scripts
+- station_quality_control/trunk/data_quality_control/notebooks/usage_demo.ipynb
+
+
+CLI
+-----------
+General use:
+
+  ```bash
+  dataqc [-h] {process,plot,available,avail,windfilter,wind} ...
+  ```
+
+Use `-h` option on subcommands for details on arguments. E.g.
+`dataqc avail -h`.
+
+
+Compute mean amplitudes and power spectral
+densities from raw seismic data and store as 
+HDF5-files:
+
+  ```bash
+  dataqc process [-h] [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--logfile LOGFILE] [--append_logfile] [-o OUTDIR]
+                        [--fileunit {year,month,day,hour}] [--overlap OVERLAP] [--proclen PROCLEN] [--winlen-in-s WINLEN_IN_S]
+                        [--nperseg NPERSEG] [--amplitude-frequencies AMPLITUDE_FREQUENCIES AMPLITUDE_FREQUENCIES]
+                        [--sampling_rate SAMPLING_RATE]
+                        nslc_code {eida-routing,iris-federator} sds_root starttime endtime
+  ```
+
+View available HDF5-data in a directory:
+  ```bash
+  dataqc available [-h] [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--logfile LOGFILE] [--append_logfile] [--fileunit FILEUNIT] nslc_code datadir
+  ```
+
+Plot results:
+  ```bash
+  dataqc plot [-h] [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--logfile LOGFILE] [--append_logfile] [--fileunit {year,month,day,hour}] [-o FIGDIR] [-s] [-l [TIMELIST]
+                   | -r TIMERANGE TIMERANGE]
+                   nslc_code datadir
+  ```
+
+Filter a list of observables for times with specific values.
+Observations are interpolated to given time increment (should
+be set to the time window used for spectral computations)
+```bash
+dataqc windfilter [-h] fname stime etime delta minspeed [maxspeed] [out]
+```
