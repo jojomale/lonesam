@@ -95,7 +95,9 @@ class GenericProcessor():
         from 01-January/31-December files will be truncated
         accordingly.
     **procparams : 
-        processing parameters as keyword arguments
+        processing parameters as keyword arguments 
+        :py:class:`data_quality_control.base.ProcessingParameters`
+
 
     
     Note
@@ -406,11 +408,14 @@ class ProcessingParameters():
         length of taper (overlap) if overlapping frames
         are necessary. In seconds.
     amplitude_frequencies : 2-tuple [(4,14)]
-        min, max frequency of bandpass, applied before
-        processing amplitudes
+        min, max frequency of Butterworth bandpass, 
+        applied before computing amplitudes
     nperseg : int [2048]
-        samples per segment for FFT in Welch-PSD. 
-        Passed to ``scipy.signal.welch()``
+        segment size in samples to estimate Welch spectrum
+        (see 
+        `scipy.signal.welch <https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.welch.html>`_ )
+        Together with `sampling_rate` it determines the resolution of
+        the frequency axis.
     winlen_seconds : int [3600]
         length of time window (=frame) over which amplitude
         and psd are computed. In seconds
@@ -418,6 +423,11 @@ class ProcessingParameters():
         length of data processed at once. In seconds. 
         Default is 1 day, corresponding to length of data
         in 1 sds-file
+    sampling_rate : int [20]
+        sampling rate of seismic data at which amplitude and 
+        spectra are computed. Data are resampled if original SR 
+        deviates. Together with `nperseg` it determines the 
+        resolution of the frequency axis.
     """
     def __init__(self, **kwargs)-> None:
         # overlap, amplitude_frequencies, nperseg,
@@ -478,6 +488,7 @@ class NSCProcessor():
         (``invclient.get_stations()``)
     **procparams : 
         processing parameters as keyword arguments
+        :py:class:`data_quality_control.base.ProcessingParameters`
     """
     def __init__(self, netw, stat, chan, loc,
                     dataclient, invclient, **procparams):
