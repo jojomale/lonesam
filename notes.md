@@ -101,6 +101,11 @@ sequence to distinguish all the above cases.
 Maybe it is easier to pass them all as optional arguments and if no optional ars are given,
 we plot the entire available time range
 
+- base.GenericProcessor.expand_nslc(): add note to docs, that 
+    starttime, endtime must be set here as arguments so they can
+    be called in child classes (e.g. for sds.db), even if they are 
+    not used in the base implementation.
+
 
 # Docs
 - https://sphinx-argparse.readthedocs.io/en/stable/index.html

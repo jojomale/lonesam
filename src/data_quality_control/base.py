@@ -262,17 +262,23 @@ class GenericProcessor():
 
 
         for _starttime, _endtime in self.iter_time(starttime, endtime):
-            if any([self.fileunit == x for x in ["year", "month", "day"]]):
-                _endtime = _endtime + 24*3600 - self.proc_params.proclen_seconds
+            self.logger.debug("processing {} - {}".format(_starttime, _endtime))
+            #if any([self.fileunit == x for x in ["year", "month", "day"]]):
+            #    _endtime = _endtime # + 24*3600 - self.proc_params.winlen_seconds
 
             self.expand_nslc(_starttime, _endtime)
             for n, s, l, c in self.iter_nslc():
-                nscproc = NSCProcessor(n, s, c, l, self.client,
+                nscproc = NSCProcessor(n, s, l, c, self.client,
                                 self.invclient, procparams=self.proc_params)
                 #print(nscproc)
+                print()
+                self.logger.debug("Times passed to nscprocessor: {} - {}".format(
+                    _starttime, _endtime
+                ))
                 output = nscproc.process(_starttime, _endtime)
+                self.logger.debug("output time range: {} - {}".format(output.startdate, output.enddate)) 
                 output.trim_nan()
-
+                self.logger.debug("output time range: {} - {}".format(output.startdate, output.enddate))
                 fout = self.get_ofile(nscproc, _starttime, force_new_file)
                 with fout:
                     output.insert_in_file(fout)
@@ -285,6 +291,11 @@ class GenericProcessor():
     def create_ofile(self, nscprocessor, starttime):
         """
         Create output file.
+
+        Note
+        -----
+        Shouldn't this be tied to BaseProcessedData rather than
+        the Processor?
         """
         ofilename = self.fname_fmt.format(
                         outdir=self.outdir,
@@ -295,22 +306,23 @@ class GenericProcessor():
                 **nscprocessor.nsc_as_dict())
         
         fstime, fetime = self.allocate_file_start_end(starttime) 
-        n_proclen = int((fetime + self.proc_params.proclen_seconds - fstime) / 
-                        self.proc_params.proclen_seconds)
+        #n_proclen = int((fetime + self.proc_params.proclen_seconds - fstime) / 
+        #                self.proc_params.proclen_seconds)
+        n_windows = int((fetime - fstime) / self.proc_params.winlen_seconds)
 
         self.logger.info("Creating output file %s" % ofilename)
-        self.logger.info("Starttime=%s, endtime=%s, n_proclen=%s" %
-                    (fstime, fetime, n_proclen))
+        self.logger.info("Starttime=%s, endtime=%s, n_windows=%s" %
+                    (fstime, fetime, n_windows))
 
         f = h5py.File(ofilename, "w")
         
 
         f.create_dataset("amplitudes", 
-                shape=(n_proclen, self.win_per_proclen), 
+                shape=(n_windows,), 
                             fillvalue=np.nan)
         nfreqs = self.proc_params.nperseg // 2 + 1
         f.create_dataset("psds", 
-                        shape=(n_proclen, self.win_per_proclen, nfreqs), 
+                        shape=(n_windows, nfreqs), 
                             fillvalue=np.nan)
         f.create_dataset("frequency_axis", shape=(nfreqs,), 
                             fillvalue=np.nan)
@@ -381,7 +393,7 @@ class GenericProcessor():
         if self.fileunit == "year":
             stime = UTC(starttime.year, 1,1,0,0,0)
             etime = (UTC(starttime.year, 12, 31, 0,0,0) + 
-                    24*3600 - self.proc_params.proclen_seconds)
+                    24*3600 ) #- self.proc_params.proclen_seconds)
         elif self.fileunit == "month":
             stime = UTC(starttime.year, starttime.month, 1, 0,0,0)
             etime = (util.get_end_of_month(stime) + 
@@ -491,7 +503,7 @@ class NSCProcessor():
         processing parameters as keyword arguments
         :py:class:`data_quality_control.base.ProcessingParameters`
     """
-    def __init__(self, netw, stat, chan, loc,
+    def __init__(self, netw, stat, loc, chan,
                     dataclient, invclient, **procparams):
         self.network = netw
         self.station = stat
@@ -584,6 +596,7 @@ class NSCProcessor():
         """
         self.starttime = starttime
         self.endtime = endtime
+        self.logger.debug(self)
         if preprocessing is None:
             preprocessing = util.process_stream
         fmin, fmax = self.processing_params.amplitude_frequencies
@@ -591,7 +604,8 @@ class NSCProcessor():
         PXX = []
         # frequency_axis = []
         start_after = 0  # counter for missing frames at beginning
-        output = BaseProcessedData(starttime, endtime, 
+        output = BaseProcessedData(starttime, 
+                        endtime+self.processing_params.proclen_seconds,#-self.processing_params.winlen_seconds, 
                         self.stationcode,
                         self.processing_params.amplitude_frequencies, 
                         self.processing_params.winlen_seconds,
@@ -599,7 +613,7 @@ class NSCProcessor():
         starttime = starttime-self.processing_params.overlap
 
         inv = self._get_inventory(starttime, endtime)
-        
+
         self.logger.info("Processing %s" % self.stationcode)
         while starttime <= self.endtime - self.processing_params.overlap:
             endtime = (starttime + 
@@ -635,7 +649,8 @@ class NSCProcessor():
             nf = int(self.processing_params.proclen_seconds/
                      self.processing_params.winlen_seconds)
             #proclen_samples = proclen * sr
-            winlen_samples = int(self.processing_params.winlen_seconds * self.processing_params.sampling_rate)
+            winlen_samples = int(self.processing_params.winlen_seconds * 
+                                 self.processing_params.sampling_rate)
             
             # Spectra
             data = util.get_adjacent_frames(tr, 
@@ -655,6 +670,11 @@ class NSCProcessor():
             PXX.append(P) # pxx[1:-1,:])
 
             starttime = starttime + self.processing_params.proclen_seconds
+        
+        AMP = np.array(AMP)
+        AMP = AMP.ravel()
+        PXX = np.array(PXX)
+        PXX = PXX.reshape((-1, PXX.shape[-1]))
 
         if len(AMP) > 0:
             output.set_data(np.array(AMP),
@@ -698,15 +718,16 @@ class BaseProcessedData():
         self.seconds_per_window = seconds_per_window
         if startdate is not None:
             startdate = UTC(startdate)
-        self.startdate = startdate
         if enddate is not None:
             enddate = UTC(enddate) 
-        self.enddate = enddate
         self.proclen_seconds = proclen_seconds
+        self.set_time(startdate, enddate)
         
         self.logger = logging.getLogger(module_logger.name+
                             '.'+"BaseProcessedData")
         self.logger.setLevel(logging.DEBUG)
+
+        self.logger.debug("Initial range: {} - {}".format(self.startdate, self.enddate))
 
     def get_nslc(self):
         """
@@ -801,9 +822,9 @@ class BaseProcessedData():
             raise ValueError(msg)
 
         i = ((self.startdate - fstime) / 
-                    self.proclen_seconds)
-        j = ((self.enddate + self.proclen_seconds - fstime) / 
-                        self.proclen_seconds)
+                    self.seconds_per_window)
+        j = ((self.enddate - fstime) / 
+                        self.seconds_per_window)
        
         i, j = int(i), int(j)
         self.logger.debug("starttime: %s" % self.startdate)
@@ -811,13 +832,13 @@ class BaseProcessedData():
         self.logger.debug("Amplitude matrix shape: %s" % 
             ", ".join([str(s) for s in self.amplitudes.shape]))
         self.logger.debug("Target shape: (%s)" % 
-            ", ".join([str(s) for s in fout["amplitudes"][i:j,:].shape]))
+            ", ".join([str(s) for s in fout["amplitudes"][i:j].shape]))
         self.logger.debug("Total shape of target %s" %
             ", ".join([str(s) for s in fout["amplitudes"][:].shape]))
         self.logger.debug("Targeted index range %s:%s" % (i,j))
 
-        fout["amplitudes"][i:j,:] = self.amplitudes
-        fout["psds"][i:j,:,:] = self.psds
+        fout["amplitudes"][i:j] = self.amplitudes
+        fout["psds"][i:j,:] = self.psds
         fout["frequency_axis"][:] = self.frequency_axis
 
     
@@ -853,17 +874,7 @@ class BaseProcessedData():
             self.logger.warn(msg)       
             raise RuntimeWarning(msg)
 
-        # check if proclen fits
-        nwin = amplitudes.shape[-1]
-        inp_proclen = nwin*self.seconds_per_window
-        
-        if not np.isclose(inp_proclen, self.proclen_seconds):
-            msg = ("Inconsistent length of processing slice." + 
-                "{:g} s in added data ".format(inp_proclen) +
-                "vs {:g} s allocated".format(self.proclen_seconds)
-            )
-            self.logger.warn(msg)
-            raise RuntimeWarning(msg)
+        self._check_shape_vs_time()
 
         self.amplitudes = amplitudes
         self.psds = psds
@@ -891,24 +902,27 @@ class BaseProcessedData():
         if not self.has_data(): 
             return
 
+        self.logger.debug("Shapes before trim_nan: {}, {}".format(
+                self.amplitudes.shape, self.psds.shape))
+
         n = 0
         while len(self.amplitudes) > 0:
-            if np.all(np.isnan(self.amplitudes[0,:])):
+            if np.all(np.isnan(self.amplitudes[0])):
                 self.amplitudes = np.delete(self.amplitudes, 0, axis=0)
                 n = n+1
             else:
                 break
-        self.psds = self.psds[n:,:,:]
+        self.psds = self.psds[n:,:]
 
         m = 0
         while len(self.amplitudes) > 0:
-            if np.all(np.isnan(self.amplitudes[-1,:])):
+            if np.all(np.isnan(self.amplitudes[-1])):
                 self.amplitudes = np.delete(self.amplitudes, -1, axis=0)
                 m = m+1
             else:
                 break
         if m > 0:
-            self.psds = self.psds[:-m,:,:]
+            self.psds = self.psds[:-m,:]
 
         # Check if any data is left
         if len(self.amplitudes) == 0:
@@ -916,10 +930,17 @@ class BaseProcessedData():
             self.psds = None
         # if yes, adjust start/enddate
         else:
-            nw = self.amplitudes.shape[1]
-            self.startdate = self.startdate + n*nw*self.seconds_per_window
-            self.enddate = self.enddate - m*nw*self.seconds_per_window
-            
+            self.set_time(self.startdate + n*self.seconds_per_window,
+                           self.enddate - m*self.seconds_per_window )
+
+        self.logger.debug(
+            "Removed {} samples from beginning and {} samples from end".format(n, m))
+        self.logger.debug("Shapes after trim_nan: {}, {}".format(
+                self.amplitudes.shape, self.psds.shape))
+        print((self.enddate - self.startdate) / self.seconds_per_window,  self.amplitudes.size)
+        
+        self._check_shape_vs_time()
+                
 
     def extend_from_file(self, file):
         """
@@ -948,6 +969,14 @@ class BaseProcessedData():
         # new.from_file(file)
         # self.extend(new)
         
+    
+    def set_time(self, starttime, endtime):
+        self.startdate = starttime
+        self.enddate = endtime
+        self.N_windows = int((self.enddate-self.startdate) // 
+                            self.seconds_per_window)
+
+
         
     def __iadd__(self, new):
         """
@@ -968,12 +997,15 @@ class BaseProcessedData():
         frequency axis are compatible.
         """
         # Get total number of days to get new array sizes
-        
+        #print(self)
+        #print()
+        #print(new)
         tmin = min(self.startdate, new.startdate)
         tmax = max(self.enddate, new.enddate)
         #days = timedelta(seconds=tmax-tmin).days+1
 
-        nrows = int((tmax-tmin+self.proclen_seconds) / self.proclen_seconds)
+        # Replace proclen with winlen?
+        nrows = int((tmax-tmin) / self.seconds_per_window)
         
         # If shapes, processing parameters, frequency axis or 
         # stationcodesare inconsistent, we get an error here
@@ -992,16 +1024,18 @@ class BaseProcessedData():
         # overwrites existing data if they overlap
         for d in [self, new]:
             #i = timedelta(seconds=d.startdate-tmin).seconds
-            i = int((d.startdate - tmin) / d.proclen_seconds )
+            i = int((d.startdate - tmin) / d.seconds_per_window )
             n = len(d.amplitudes)
             
-            new_amps[i:i+n,:] = d.amplitudes
-            new_psds[i:i+n,:,:] = d.psds
+            new_amps[i:i+n] = d.amplitudes
+            new_psds[i:i+n,:] = d.psds
             
         self.amplitudes = new_amps
         self.psds = new_psds
         self.startdate = UTC(tmin.date)
         self.enddate = UTC(tmax.date)
+        #print(self)
+        self._check_shape_vs_time()
         self.trim_nan()
 
 
@@ -1018,12 +1052,28 @@ class BaseProcessedData():
         """
         # Any of these methods raises IOError
         # if inconsistencies are found
-        self._check_shapes(new)
+        #self._check_shapes(new)
         self._check_frequencies(new)
         self._check_codes(new)
+        new._check_shape_vs_time()
+        self._check_shape_vs_time()
         return True
     
+
+    def _check_shape_vs_time(self):
+        timespan = self.enddate - self.startdate
+        n_windows = timespan / self.seconds_per_window
+        if timespan % n_windows != 0:
+            raise RuntimeWarning("N_windows is {:g}".format(n_windows))
         
+        if self.has_data():
+            assert self.psds.shape[0] == self.amplitudes.shape[0], \
+                "Amplitudes and PSDs have different time axis!"
+            assert int(n_windows) == self.psds.shape[0], \
+                "number of time windows and array sizes don't match. {} vs {}".format(
+                    n_windows, self.psds.shape[0]
+                )
+
     def _check_shapes(self, new):
         """
         Checks if number of processing windows
@@ -1031,13 +1081,17 @@ class BaseProcessedData():
         compatible.
         Throws IOError if not.
         """
+        raise DeprecationWarning("_check_shapes is obsolete. Remove!")
         amps_shp = self.amplitudes.shape
         psds_shp = self.psds.shape
         if (amps_shp[-1] == new.amplitudes.shape[-1] and
             psds_shp[1:] == new.psds.shape[1:]):
             return amps_shp, psds_shp
         else:
-            self.logger.error("Data in files have inconsistent shapes!")
+            self.logger.error("Data in files have inconsistent shapes!" + 
+                "Amplitudes: {} vs {}\n ".format(self.amplitudes.shape, 
+                                new.amplitudes.shape) +
+                " PSDs: {} s {}".format(self.psds.shape, new.psds.shape))
             raise IOError("Data in files have inconsistent shapes!")
             #return False, False
 
@@ -1189,7 +1243,7 @@ class BaseProcessedData():
         nsc = "Results for {}\n".format( self.stationcode) + 20*"-"
         s = "Starttime: {}".format(self.startdate)
         e = "Enddate: {}".format(self.enddate)
-        d = "Days: {:d}".format(self.amplitudes.shape[0])
+        d = "N windows: {:d}".format(self.N_windows)
         shp1 = "Amplitude shape = {}".format(self.amplitudes.shape)
         shp2 = "PSD shape = {}".format(self.psds.shape)
         pr1 = "Seconds per window = {:g}".format(self.seconds_per_window)
