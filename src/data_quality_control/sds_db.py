@@ -6,9 +6,10 @@ import numpy as np
 
 #from obspy.core import UTCDateTime as UTC
 from obspy.clients.filesystem.sds import Client
-from obspy.clients.fdsn import RoutingClient
+from obspy.clients.fdsn import RoutingClient, Client as FDSNClient
+from obspy import Inventory
 
-from . import base, dqclogging
+from . import base, dqclogging, util
 #from .analysis import Analyzer
 
 import logging
@@ -19,14 +20,14 @@ module_logger = logging.getLogger(logger.name+'.sds_db')
 
 class SDSProcessor(base.GenericProcessor):
     def __init__(self, nslc_code,  
-            inventory_routing_type,
+            inventory_or_routing_type,
             sds_root, sds_dict={}, 
             outdir='.', preprocessing=None, 
             fileunit="year", **procparams):
 
         #location = ""
         dataclient = Client(sds_root, **sds_dict)
-        invclient = RoutingClient(inventory_routing_type)
+        invclient = self._set_inventory(inventory_or_routing_type)
 
         super().__init__(nslc_code,
                 dataclient, invclient, 
@@ -35,6 +36,15 @@ class SDSProcessor(base.GenericProcessor):
         self.logger = logging.getLogger(module_logger.name+
                             '.'+"SDSProcessor")
         self.logger.setLevel(logging.DEBUG)
+
+
+    def _set_inventory(self, inventory_or_routing_type):
+        if isinstance(inventory_or_routing_type, Inventory):
+            return inventory_or_routing_type
+        elif isinstance(inventory_or_routing_type, str):
+            return util.get_fdsn_or_routing_client(
+                inventory_or_routing_type)
+
 
 
     def expand_nslc(self, starttime, endtime):

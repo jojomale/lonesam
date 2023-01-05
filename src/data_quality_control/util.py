@@ -11,6 +11,7 @@ from scipy.signal import get_window
 
 from obspy.core import UTCDateTime as UTC
 from obspy.signal.filter import bandpass
+from obspy.clients.fdsn import RoutingClient, Client
 
 import h5py
 
@@ -20,6 +21,15 @@ from . import dqclogging
 # Create the global logger
 logger = dqclogging.create_logger()
 module_logger = logging.getLogger(logger.name+'.util')
+
+
+def get_fdsn_or_routing_client(server_or_routingservice):
+    routing_services = ["iris-federator", "eida-routing"]
+    if any([s in server_or_routingservice for s in routing_services]):
+        client = RoutingClient(server_or_routingservice)
+    else:
+        client = Client(server_or_routingservice)
+    return client
 
 
 def _create_hdf5_attribs(f, stationcode, starttime, endtime, 

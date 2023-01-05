@@ -32,6 +32,7 @@ except FileNotFoundError:
 
 
 from obspy.core import UTCDateTime as UTC
+from obspy import Inventory
 
 import plotly.graph_objects as go
 
@@ -533,6 +534,16 @@ class NSCProcessor():
         return d
 
 
+    def _get_inventory(self, starttime, endtime):
+        if isinstance(self.invclient, Inventory):
+            return self.invclient
+        else:
+            return self.invclient.get_stations(
+                starttime=starttime, endtime=endtime, level='response',
+                **self.nsc_as_dict())
+
+
+
     def process(self, starttime, endtime, 
                 preprocessing=None):
         """
@@ -586,9 +597,9 @@ class NSCProcessor():
                         self.processing_params.winlen_seconds,
                         self.processing_params.proclen_seconds)
         starttime = starttime-self.processing_params.overlap
-        inv = self.invclient.get_stations(
-            starttime=starttime, endtime=endtime, level='response',
-            **self.nsc_as_dict())
+
+        inv = self._get_inventory(starttime, endtime)
+        
         self.logger.info("Processing %s" % self.stationcode)
         while starttime <= self.endtime - self.processing_params.overlap:
             endtime = (starttime + 
