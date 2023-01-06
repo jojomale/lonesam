@@ -156,8 +156,8 @@ def run_plot(args):
     module_logger.debug("DATA contains {}".format(DATA))
 
     figname = "{}_{}-{}".format(lyza.stationcode, 
-                        lyza.starttime.datetime, 
-                        lyza.endtime.datetime)
+                        lyza.startdate.datetime, 
+                        lyza.enddate.datetime)
     module_logger.debug("Figure name base: {}".format(figname))
     fig_cont = lyza.plot_spectrogram()
     fig_cont.savefig(figdir.joinpath("{}_spectrogram.png".format(figname)))
@@ -297,7 +297,7 @@ def process(subparsers):
     process.add_argument("nslc_code", type=str, 
             help=("station code {network}.{station}.{location}.{channel}," +
             "may contain glob-style wildcards"))
-    process.add_argument("inventory_routing_type", type=str,
+    process.add_argument("inventory_or_routing_type", type=str,
             help="routing client for inventory",
             choices=["eida-routing", "iris-federator"]
             )

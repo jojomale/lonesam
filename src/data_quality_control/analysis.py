@@ -296,6 +296,8 @@ class Analyzer(base.BaseProcessedData):
             kwargs["cmap"] = plt.cm.afmhot
         if not "shading" in kwargs:
             kwargs["shading"] = "auto"
+        
+        
    
         if ax is None:
             fig, ax = plt.subplots(1,1)
@@ -325,8 +327,8 @@ class Analyzer(base.BaseProcessedData):
         else:
             kwargs["vmax"] = kwargs["vmax"]
         self.logger.debug("Kwargs passed to pcolormesh are {}".format(kwargs))
-
-        pmesh = ax.pcolormesh(tax, self.frequency_axis, Z,
+        
+        pmesh = ax.pcolormesh(tax, self.frequency_axis, Z, 
                             **kwargs)
 
         if not self.timerange:
