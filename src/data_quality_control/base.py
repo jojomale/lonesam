@@ -719,10 +719,6 @@ class BaseProcessedData():
         self.stationcode = stationcode
         self.amplitude_frequencies = amplitude_frequencies
         self.seconds_per_window = seconds_per_window
-        if startdate is not None:
-            startdate = UTC(startdate)
-        if enddate is not None:
-            enddate = UTC(enddate) 
         # self.proclen_seconds = proclen_seconds
         self.set_time(startdate, enddate)
         
@@ -1020,10 +1016,18 @@ class BaseProcessedData():
         
     
     def set_time(self, starttime, endtime):
+        if starttime is not None:
+            starttime = UTC(starttime)
+        if endtime is not None:
+            endtime = UTC(endtime) 
         self.startdate = starttime
         self.enddate = endtime
-        self.N_windows = int((self.enddate-self.startdate) // 
+
+        if self.startdate is not None and self.enddate is not None:
+            self.N_windows = int((self.enddate-self.startdate) // 
                             self.seconds_per_window)
+        else:
+            self.N_windows = None
 
 
         
@@ -1184,12 +1188,13 @@ class BaseProcessedData():
     #     fig.show()
 
 
-    def _get_date_and_time_axis(self, seconds_per_ydim):
+    def _get_date_and_time_axis_for_amplitude_matrix(self):
         """
         Get x and y axis for plotting amplitudes.
 
         x axis are dates, y axis are hours of day.
         """
+        seconds_per_ydim = 24*3600
         samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
         dtflag, dtinc = util.choose_datetime_inc(seconds_per_ydim)
         self.logger.debug(
@@ -1212,6 +1217,12 @@ class BaseProcessedData():
         return dateax, timeax
 
 
+    def _get_amplitude_matrix(self):
+        seconds_per_ydim = 24*3600
+        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        A = self.amplitudes.reshape(-1, samples_per_ydim).T
+        return A
+
 
     def plot_amplitudes(self, ax=None):
         """
@@ -1232,13 +1243,12 @@ class BaseProcessedData():
         if ax is None:
             fig, ax = plt.subplots(1,1)
 
-        seconds_per_ydim = 24*3600
-        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        
         self.fill_days()
-        dateax, timeax = self._get_date_and_time_axis(seconds_per_ydim)
-
-        A = self.amplitudes.reshape(-1, samples_per_ydim).T
+        A = self._get_amplitude_matrix()
         nt, nd = A.shape
+
+        dateax, timeax = self._get_date_and_time_axis_for_amplitude_matrix()
 
         im = ax.imshow(A, aspect="auto")
         ax.set_title("Amplitude data matrix");
@@ -1254,6 +1264,28 @@ class BaseProcessedData():
         plt.colorbar(im, ax=ax)
         fig.autofmt_xdate()
         return ax
+
+
+    def _get_psd_datetimeax(self):
+        dtflag, dtinc = util.choose_datetime_inc(self.seconds_per_window)
+        tax = np.arange(self.startdate, 
+                        self.enddate+self.seconds_per_window,
+                        dtinc,
+                    dtype='datetime64[{}]'.format(dtflag))
+        return tax
+
+
+
+    def _get_psd_datetime_labels(self, N_timeticks=8):
+        timeax_inc = (self.enddate+self.seconds_per_window -
+        self.startdate) / N_timeticks
+        dtflag, dtinc = util.choose_datetime_inc(
+                            timeax_inc)
+        tax = np.arange(self.startdate, 
+                        self.enddate+self.seconds_per_window,
+                        dtinc,
+                    dtype='datetime64[{}]'.format(dtflag))
+        return tax
 
 
     def plot_psds(self, func=None, tax=None, ax=None, 
@@ -1286,20 +1318,14 @@ class BaseProcessedData():
         if ax is None:
             fig, ax = plt.subplots(1,1)
 
-        timeax_inc = (self.enddate+self.seconds_per_window -self.startdate) / N_timeticks
-        dtflag, dtinc = util.choose_datetime_inc(
-                            timeax_inc)
+        if tax is None:
+            tax = self._get_psd_datetime_labels(N_timeticks)
 
         M = self.psds.T
         nf, nt = M.shape
 
         if func is not None:
             M = func(M)
-        if tax is None:
-            tax = np.arange(self.startdate, 
-                            self.enddate+self.seconds_per_window,
-                            dtinc,
-                        dtype='datetime64[{}]'.format(dtflag))
 
         xticks = np.linspace(0, nt, tax.size)
         cax = ax.imshow(M, aspect="auto")

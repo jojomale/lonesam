@@ -28,6 +28,8 @@ module_logger = logging.getLogger(logger.name+'.analysis')
 
 wildcards = ["?", "*"]
 
+
+
 class Analyzer():
     def __init__(self, 
                  datadir, nslc_code, fileunit="year",
@@ -229,12 +231,13 @@ class Analyzer():
         ## I don't know why but Nans are not always trimmed correctly, leading
         ## to false dates in DATA.
         DATA.trim_nan()
+        DATA.fill_days()
         self.logger.info("Available time range in data: {}-{}".format(
             DATA.startdate, DATA.enddate
         ))
         
         ## Reduce start/end time to those in DATA if out of available range
-        if stime > DATA.enddate + DATA.proclen_seconds:
+        if stime > DATA.enddate: # + DATA.proclen_seconds:
             msg = ("Requested time range starts after data is available." + 
                         "Data available from {} - {}").format(
                             *self.get_available_timerange())
@@ -252,7 +255,7 @@ class Analyzer():
             stime = DATA.startdate
             self.logger.info("Adjusting starttime to available: {}".format(stime))
 
-        if DATA.enddate + DATA.proclen_seconds < etime:
+        if DATA.enddate < etime: # + DATA.proclen_seconds
             # if DATA.enddate + DATA.proclen_seconds <= stime:
             #     msg = ("Requested time range starts after available data." + 
             #                     "Data ends at {}").format(DATA.enddate)
@@ -260,27 +263,28 @@ class Analyzer():
             #     raise RuntimeError(msg)
                 
             # else:
-            etime = DATA.enddate + DATA.proclen_seconds
+            etime = DATA.enddate# + DATA.proclen_seconds
             self.logger.info("Adjusting endtime to available: {}".format(etime))
         self.set_time(stime, etime)
 
         # print(len(starttimes))
         # print(timerange)
 
-        inds_amp, inds_psd, timeax_psd = self._get_data_indices(
-            DATA, starttimes)
+        #inds_amp, inds_psd, timeax_psd = self._get_data_indices(
+        #    DATA, starttimes)
         #self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
         #self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
         
         ## It might make more sense to add the DATA directly
-        self.amps = DATA.amplitudes[inds_amp,:]
-        self.psds = DATA.psds.reshape((-1, DATA.psds.shape[-1]))[inds_psd]
+        self.amps = DATA._get_amplitude_matrix()
+        self.amp_axis = DATA._get_date_and_time_axis_for_amplitude_matrix()
+        self.psds = DATA.psds
         #self.logger.debug(self.psds.shape)
         self.freqax = DATA.frequency_axis
-        self.proclen_seconds = DATA.proclen_seconds
+        #self.proclen_seconds = DATA.proclen_seconds
         self.winlen_seconds = DATA.seconds_per_window
         self.nwin = self.amps.shape[1]
-        self.timeax_psd = timeax_psd
+        self.timeax_psd = DATA._get_psd_datetimeax()
         self.amplitude_frequency_range = DATA.amplitude_frequencies
         return DATA
 
@@ -410,13 +414,11 @@ class Analyzer():
 
 
     def plot3d_amplitudes(self, func=None):
-
-        
         if func:
             z = func(self.amps)
         else:
             z = self.amps
-        dateax, timeax = self._get_time_axis()
+        dateax, timeax = self.amp_axis
 
         title = ("Hourly 75%-amplitude<br>" + 
             "{} - {}<br>".format(min(dateax), max(dateax)) +
