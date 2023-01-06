@@ -99,6 +99,29 @@ class Analyzer(base.BaseProcessedData):
         return sorted(files)
 
 
+    def _check_times(self, starttimes, endtime):
+        """
+        Determines if given times indicate time range
+        or time list.
+
+        Raises UserWarning if input is wrong.
+        """
+        if isinstance(starttimes, UTC):
+            if not isinstance(endtime, UTC):
+                endtime = UTC()
+            starttimes = [starttimes, endtime]
+            self.timerange = True
+        elif isinstance(starttimes, (list, np.ndarray, tuple)):
+            self.timerange = False
+        else:
+            raise UserWarning("Need to give either list of times or" + 
+                            "start and endtime of time range. " + 
+                            "Times must be obspy.UTCDateTimes.")
+
+        self.logger.debug("timerange is set to {}".format(self.timerange))
+        return sorted(starttimes)
+
+
     def get_data(self, starttimes, endtime=None):
         """
         Load amplitudes, psds and metadata from HDF5-files for
@@ -136,21 +159,7 @@ class Analyzer(base.BaseProcessedData):
                 "Can only get data for defined netw.stat.loc.chan!")
 
         self._reset()
-
-        if isinstance(starttimes, UTC):
-            if not isinstance(endtime, UTC):
-                endtime = UTC()
-            starttimes = [starttimes, endtime]
-            self.timerange = True
-        elif isinstance(starttimes, (list, np.ndarray, tuple)):
-            self.timerange = False
-        else:
-            raise UserWarning("Need to give either list of times or" + 
-                            "start and endtime of time range. " + 
-                            "Times must be obspy.UTCDateTimes.")
-
-        self.logger.debug("timerange is set to {}".format(self.timerange))
-        starttimes = sorted(starttimes)
+        starttimes = self._check_times(starttimes, endtime)
         etime = starttimes[-1]
         stime = starttimes[0]
             
@@ -163,10 +172,8 @@ class Analyzer(base.BaseProcessedData):
 
         self.trim_nan()
         #self.fill_days()
-        self.check_if_requested_times_are_available(stime, etime)
-        self.logger.info("Available time range in data: {}-{}".format(
-            self.startdate, self.enddate
-        ))
+        self._check_if_requested_times_are_available(stime, etime)
+        
         self._check_shape_vs_time()
         self.timeax_psd = self._get_psd_datetimeax()
 
@@ -186,7 +193,7 @@ class Analyzer(base.BaseProcessedData):
                 continue
 
 
-    def check_if_requested_times_are_available(self, stime, etime):
+    def _check_if_requested_times_are_available(self, stime, etime):
         ## Reduce start/end time to those in self if out of available range
         if stime > self.enddate:
             self._reset()
@@ -211,29 +218,8 @@ class Analyzer(base.BaseProcessedData):
         if self.enddate < etime:
             etime = self.enddate
             self.logger.info("Adjusting endtime to available: {}".format(etime))
-        #self.set_time(stime, etime)
-
-
-        # print(len(starttimes))
-        # print(timerange)
-
-        #inds_amp, inds_psd, timeax_psd = self._get_data_indices(
-        #    DATA, starttimes)
-        #self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
-        #self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
         
-        # ## It might make more sense to add the DATA directly
-        # self.amps = DATA._get_amplitude_matrix()
-        # self.amp_axis = DATA._get_date_and_time_axis_for_amplitude_matrix()
-        # self.psds = DATA.psds
-        # #self.logger.debug(self.psds.shape)
-        # self.freqax = DATA.frequency_axis
-        # #self.proclen_seconds = DATA.proclen_seconds
-        # self.winlen_seconds = DATA.seconds_per_window
-        # self.nwin = self.amps.shape[1]
-        # self.timeax_psd = DATA._get_psd_datetimeax()
-        # self.amplitude_frequency_range = DATA.amplitude_frequencies
-        # return DATA
+
 
     def filter_psds_for_times(self, timelist):
         self.logger.debug("len(input timelist): {:d}".format(
@@ -248,12 +234,7 @@ class Analyzer(base.BaseProcessedData):
                     for t in timelist]
         self.timeax_psd = timeax
         self.psds = self.psds[time_idx,:]
-        #self.logger.debug("Returning indices for timelist")
-        #inds_amp, inds_psd = util._get_data_indices(DATA, starttimes)
-        #self.logger.debug("Inds_psd: {:g}".format(len(inds_psd)))
-        #self.logger.debug("max ind {:g}".format(max(inds_psd)))
-        #return inds_amp, inds_psd, timeax_psd 
-        #return timelist, timeax, time_idx
+
 
 
     def __repr__(self) -> str:
@@ -277,6 +258,184 @@ class Analyzer(base.BaseProcessedData):
             self.logger.debug(e)
         
         return "\n".join([s1, datadir, fileunit, fmtstr, loglevel, s2])
+
+
+    def plot_spectrogram(self, ax=None, func=None, 
+            colorbarlabel="",
+             **kwargs):
+        """
+        Plot power spectral densities as spectrogram.
+
+        We use matplotlibs `pcolormesh` to plot the PSDs
+        in a spectrogram-like way, i.e. time on x-axis, 
+        frequency on y-axis and PSD as color.
+
+        Parameters
+        -----------
+        ax : matplotlib.axes
+            axes to plot in
+        func : callable
+            modifies PSDS as `func(self.psds.T)` before plotting.
+            If not given, we plot `np.log10(self.psds.T * 1e9**2)`
+            which is `log10(nm^2/s^2/Hz`.
+        colorbarlabel : str [""]
+            set colorbar label. Useful in combination with `func`
+            to set correct units for color scale.
+        kwargs :  
+            keyword arguments passed to pcolormesh. 
+            `vmax` can be callable to set `vmax=vmax(Z)`.
+            If not given, we use: 
+            `cmap=plt.cm.afmhot`,
+            `shading=auto`,
+            `vmax=np.nanmax(Z)`
+
+
+        """
+
+        if not "cmap" in kwargs:
+            kwargs["cmap"] = plt.cm.afmhot
+        if not "shading" in kwargs:
+            kwargs["shading"] = "auto"
+   
+        if ax is None:
+            fig, ax = plt.subplots(1,1)
+        else:
+            fig = ax.get_figure()
+
+        if self.timerange:
+            tax = self.timeax_psd
+        else:
+            tax = np.arange(self.timeax_psd.size)
+            nticks = 10
+            dtick = tax.size // nticks
+            xticks = tax[::dtick]
+            xticklabels = self.timeax_psd[::dtick]
+
+        if func:
+            Z = func(self.psds.T)
+            colorbarlabel = colorbarlabel
+        else:
+            Z = np.log10(self.psds.T*1e9**2)
+            colorbarlabel = r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$'
+        
+        if not "vmax" in kwargs:
+            kwargs["vmax"] = 0.9*np.nanmax(Z)
+        elif callable(kwargs["vmax"]):
+            kwargs["vmax"] = kwargs["vmax"](Z)
+        else:
+            kwargs["vmax"] = kwargs["vmax"]
+        self.logger.debug("Kwargs passed to pcolormesh are {}".format(kwargs))
+
+        pmesh = ax.pcolormesh(tax, self.frequency_axis, Z,
+                            **kwargs)
+
+        if not self.timerange:
+            self.logger.debug("Setting xticks")
+            ax.set_xticks(xticks)
+            ax.set_xticklabels(xticklabels)
+        fig.autofmt_xdate()
+
+        plt.colorbar(pmesh, ax=ax, 
+                    label=colorbarlabel
+                    )        
+        ax.set_xlabel("time")
+        ax.set_ylabel("frequency, Hz")
+        return fig
+
+
+    def plot3d(self):
+        return self.plot3d_amplitudes(), self.plot3d_psds()
+
+
+    def plot3d_amplitudes(self, func=None):
+        z = self.reshape_amps_to_days()
+        if func:
+            z = func(z)
+
+        dateax, timeax = self._get_date_and_time_axis_for_amplitude_matrix()
+
+        title = ("Hourly 75%-amplitude<br>" + 
+            "{} - {}<br>".format(min(dateax), max(dateax)) +
+            "{} - {}".format(min(timeax), max(timeax))
+            )
+
+        # Numpy-datetime can give you a **really** hard time to convert
+        # between the different increments....
+        xticks = [str(timedelta(
+            **{np_td2datetime_td_keywords[str(timeax.dtype)] : int(np.int64(s))})) 
+               for s in timeax]
+        
+        char = str(timeax.dtype)[-2]
+        timeax = np.array(timeax, dtype=np.datetime64(None, char))
+        #print(xticks, timeax)
+        fig = self._plotly_3dsurface(timeax, dateax, z,
+                        name="amplitudes")
+        
+        fig.update_layout(title=title,
+            scene=dict(
+                xaxis=dict(title='Time', ticktext=xticks, tickvals=timeax),
+                yaxis=dict(title='Date'),
+                zaxis=dict(title="m/s")
+            )
+        )
+        return fig
+
+        
+
+    def plot3d_psds(self, func=None, zlabel=None):
+        """
+        
+        Notes
+        ----------
+        Latex rendering for me works in title but not on axis labels.
+        """
+
+        if func:
+            z = func(self.psds)
+            if zlabel is None:
+                try:
+                    funcname = func.__name__+"(", ")"
+                except AttributeError:
+                    funcname = "", ""
+                zlabel = "psd, {}m^2/s^2/Hz{}".format(*funcname)
+        else:
+            z = np.log10(self.psds*1e9**2)
+            zlabel = r"$\alpha \log_{10}\frac{nm^2}{s^2Hz}$"
+      
+        y = self.timeax_psd
+        x = self.frequency_axis
+        fig = self._plotly_3dsurface(x, y, z, name="psds")
+
+        title = ("Hourly power spectral density<br>" + 
+           "{} - {}<br>".format(min(y), max(y))
+           )
+        #title = r'$\frac{\alpha^2}{\beta}$'
+
+        fig.update_layout(title=title, 
+                        scene=dict(
+                            xaxis=dict(title='Frequency, Hz'),
+                            yaxis=dict(title='Datetime'),
+                            zaxis=dict(title=zlabel#"psd, {}m^2/s^2/Hz{}".format(*funcname)
+                                        )
+                                )
+                            )
+           
+        return fig
+
+
+    def _plotly_3dsurface(self,x,y, z, name=None, cmin=None, cmax=None):
+        #sh_0, sh_1 = z.shape
+        #y, x = np.linspace(0, sh_0-1, sh_0), np.linspace(0, sh_1-1, sh_1)
+        fig = go.Figure(data=[go.Surface(z=z, x=x, y=y, name=name, 
+                                            cmin=cmin, cmax=cmax)])
+        fig.update_layout(autosize=True,
+                          width=800, height=500,
+                          scene=dict(aspectmode='manual',
+                                     aspectratio=dict(x=1, y=2, z=0.5))
+                          #margin=dict(l=65, r=50, b=65, t=90)
+                         )
+        #fig.show()
+        return fig
 
 
 
