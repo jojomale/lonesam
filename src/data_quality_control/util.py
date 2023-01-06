@@ -64,7 +64,7 @@ def _create_hdf5_attribs(f, stationcode, starttime, endtime,
     f.attrs.create('endtime', np.array(endtime.timetuple()[:6]))
     f.attrs.create('amplitude_frequencies', np.array(freqs))
     f.attrs.create('seconds_per_window', np.array(winlen_seconds))
-    f.attrs.create('seconds_per_proclen', np.array(proclen_seconds))
+    #f.attrs.create('seconds_per_proclen', np.array(proclen_seconds))
 
 
 def process_stream(st, inv, starttime, endtime, 

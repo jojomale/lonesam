@@ -609,7 +609,8 @@ class NSCProcessor():
                         self.stationcode,
                         self.processing_params.amplitude_frequencies, 
                         self.processing_params.winlen_seconds,
-                        self.processing_params.proclen_seconds)
+                        #self.processing_params.proclen_seconds
+                        )
         starttime = starttime-self.processing_params.overlap
 
         inv = self._get_inventory(starttime, endtime)
@@ -709,7 +710,9 @@ class BaseProcessedData():
     def __init__(self,startdate=None, enddate=None,
                 stationcode="....", 
                 amplitude_frequencies=(None,None),
-                seconds_per_window=None, proclen_seconds=None):
+                seconds_per_window=None, 
+                #proclen_seconds=None
+                ):
         self.amplitudes = None
         self.psds = None
         self.frequency_axis = None
@@ -720,7 +723,7 @@ class BaseProcessedData():
             startdate = UTC(startdate)
         if enddate is not None:
             enddate = UTC(enddate) 
-        self.proclen_seconds = proclen_seconds
+        # self.proclen_seconds = proclen_seconds
         self.set_time(startdate, enddate)
         
         self.logger = logging.getLogger(module_logger.name+
@@ -750,7 +753,7 @@ class BaseProcessedData():
             self.amplitudes = np.array(fin['amplitudes'])
             self.frequency_axis = np.array(fin['frequency_axis'])
             self.psds = np.array(fin['psds'])
-            self.proclen_seconds = fin.attrs['seconds_per_proclen']
+            #self.proclen_seconds = fin.attrs['seconds_per_proclen']
         return self
 
     
@@ -780,7 +783,8 @@ class BaseProcessedData():
                                 self.startdate, self.enddate,
                                 self.amplitude_frequencies,
                                 self.seconds_per_window,
-                                self.proclen_seconds)
+                                #self.proclen_seconds
+                                )
           
 
     def insert_in_file(self, fout):
@@ -941,6 +945,51 @@ class BaseProcessedData():
         
         self._check_shape_vs_time()
                 
+
+    def fill_days(self):
+        """
+        Extend time range to midnight of start/end day by
+        filling time series with Nans.
+
+        Startdate YYYY-MM-DDThh:mm:ss is set to YYYY-MM-DDT00:00:00,
+        enddate YYYY-MM-DDThh:mm:ss is set to 
+        YYYY-MM-DDT00:00:00 + 1day.
+
+        Used to prepare data for reshaping when plotting amplitudes.
+        """
+
+        self.logger.info("Filling data with Nans fo fill days")
+        seconds_per_ydim = 24*3600
+        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        print(samples_per_ydim)
+
+        new_startdate = UTC(self.startdate.date)
+        new_enddate = UTC(self.enddate.date) + seconds_per_ydim
+
+        assert new_startdate <= self.startdate, "new startdate > old"
+        assert new_enddate >= self.enddate, "new enddate < old"
+
+        ns_front = int((self.startdate - new_startdate) / self.seconds_per_window)
+        ns_back = int((new_enddate - self.enddate) / self.seconds_per_window)
+        self.logger.debug("Extening front by {:g}, back by {:g} samples.".format(
+                ns_front, ns_back
+        ))
+        #ns_back = int(samples_per_ydim - ns_back)
+
+        A = self.amplitudes.copy()
+        A = np.insert(A, 0, np.ones(ns_front)*np.nan)
+        A = np.append(A, np.ones(ns_back)*np.nan)
+
+        P = self.psds.copy()
+        nf = P.shape[-1]
+        P = np.vstack((np.ones((ns_front, nf))*np.nan, 
+                        P, 
+                        np.ones((ns_back, nf))*np.nan))
+        
+        self.set_data(A, P, self.frequency_axis)
+        self.set_time(new_startdate, new_enddate)
+        self._check_shape_vs_time()
+
 
     def extend_from_file(self, file):
         """
@@ -1122,29 +1171,54 @@ class BaseProcessedData():
             return True
 
     
-    def _plotly_amplitudes(self):
-        z = self.amplitudes #np.clip(AMP, None,  a_max=5.5)
-        sh_0, sh_1 = z.shape
-        y, x = np.linspace(0, sh_0-1, sh_0), np.linspace(0, sh_1-1, sh_1)
-        fig = go.Figure(data=[go.Surface(z=z, x=x, y=y, name='amplitude', cmin=2, cmax=None)])
-        fig.update_layout(title='75%-amplitude', autosize=True,
-                          width=800, height=500,
-                          scene=dict(aspectmode='manual', aspectratio=dict(x=1, y=2, z=0.5))
-                          #margin=dict(l=65, r=50, b=65, t=90)
-                         )
-        fig.show()
+    # def _plotly_amplitudes(self):
+    #     z = self.amplitudes #np.clip(AMP, None,  a_max=5.5)
+    #     sh_0, sh_1 = z.shape
+    #     y, x = np.linspace(0, sh_0-1, sh_0), np.linspace(0, sh_1-1, sh_1)
+    #     fig = go.Figure(data=[go.Surface(z=z, x=x, y=y, name='amplitude', cmin=2, cmax=None)])
+    #     fig.update_layout(title='75%-amplitude', autosize=True,
+    #                       width=800, height=500,
+    #                       scene=dict(aspectmode='manual', aspectratio=dict(x=1, y=2, z=0.5))
+    #                       #margin=dict(l=65, r=50, b=65, t=90)
+    #                      )
+    #     fig.show()
 
 
-    def plot_amplitudes(self, tax=None, ax=None, 
-        labelinc=1):
+    def _get_date_and_time_axis(self, seconds_per_ydim):
+        """
+        Get x and y axis for plotting amplitudes.
+
+        x axis are dates, y axis are hours of day.
+        """
+        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        dtflag, dtinc = util.choose_datetime_inc(seconds_per_ydim)
+        self.logger.debug(
+            "Time incr & format for time / y: {:g} {}".format(
+                dtinc, dtflag))
+        #print(dtflag, dtinc)
+        dateax = np.arange(self.startdate, 
+                            self.enddate,
+                            dtinc,
+                        dtype='datetime64[{}]'.format(dtflag))
+
+        dtflag, dtinc = util.choose_datetime_inc(self.seconds_per_window)
+        
+        self.logger.debug(
+            "Time incr & format for dates / x: {:g} {}".format(
+                dtinc, dtflag))
+    
+        timeax = np.arange(0, samples_per_ydim*dtinc, np.timedelta64(dtinc, dtflag))
+
+        return dateax, timeax
+
+
+
+    def plot_amplitudes(self, ax=None):
         """
         Plot amplitude matrix using matplotlib.
 
         Parameters
         ---------------
-        tax : ndarray
-            labels of time axis. If not given, labels
-            are created from start/endtime
         ax : matplotlib.axes
             Axes to use. If not given, new figure is 
             created.
@@ -1158,28 +1232,32 @@ class BaseProcessedData():
         if ax is None:
             fig, ax = plt.subplots(1,1)
 
-        dtflag, dtinc = util.choose_datetime_inc(self.proclen_seconds)
+        seconds_per_ydim = 24*3600
+        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        self.fill_days()
+        dateax, timeax = self._get_date_and_time_axis(seconds_per_ydim)
 
+        A = self.amplitudes.reshape(-1, samples_per_ydim).T
+        nt, nd = A.shape
 
-        if tax is None:
-            tax = np.arange(self.startdate, 
-                            self.enddate+self.proclen_seconds, 
-                            dtinc,
-                            dtype='datetime64[{}]'.format(dtflag))
-        yticks = np.arange(0, len(tax), labelinc)
-
-        im = ax.imshow(self.amplitudes)
+        im = ax.imshow(A, aspect="auto")
         ax.set_title("Amplitude data matrix");
-        ax.set_xlabel('windows')
-        ax.set_ylabel('proclen');
+        ax.set_xlabel('date')
+        xticks = np.arange(nd)
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(dateax);
+    
+        ax.set_ylabel('time');
+        yticks = np.arange(nt)
         ax.set_yticks(yticks)
-        ax.set_yticklabels(tax);
+        ax.set_yticklabels(timeax);
         plt.colorbar(im, ax=ax)
+        fig.autofmt_xdate()
         return ax
 
 
     def plot_psds(self, func=None, tax=None, ax=None, 
-            N_freqlabels=8):
+            N_freqlabels=8, N_timeticks=8):
         """
         Plot PSD matrix as (time, frequency) using 
         matplotlib.
@@ -1207,30 +1285,35 @@ class BaseProcessedData():
         
         if ax is None:
             fig, ax = plt.subplots(1,1)
-        dtflag, dtinc = util.choose_datetime_inc(
-                            self.proclen_seconds)
 
-        i, j, k = self.psds.shape
-        M = self.psds.reshape(i*j, k)
+        timeax_inc = (self.enddate+self.seconds_per_window -self.startdate) / N_timeticks
+        dtflag, dtinc = util.choose_datetime_inc(
+                            timeax_inc)
+
+        M = self.psds.T
+        nf, nt = M.shape
+
         if func is not None:
             M = func(M)
         if tax is None:
             tax = np.arange(self.startdate, 
-                            self.enddate+self.proclen_seconds,
+                            self.enddate+self.seconds_per_window,
                             dtinc,
                         dtype='datetime64[{}]'.format(dtflag))
-        yticks = np.arange(0,len(M), j)
-        cax = ax.imshow(M)
-        ax.set_yticks(yticks);
-        ax.set_yticklabels(tax);
+
+        xticks = np.linspace(0, nt, tax.size)
+        cax = ax.imshow(M, aspect="auto")
+        ax.set_xticks(xticks);
+        ax.set_xticklabels(tax);
+        fig.autofmt_xdate()
         plt.colorbar(cax, ax=ax) 
 
-        xticks_inc = int(k / N_freqlabels)
-        xticks = np.arange(0, self.frequency_axis.size, xticks_inc)
-        xticklabels = np.round(self.frequency_axis, 2)[::xticks_inc]
-        ax.set_xticks(xticks)
-        ax.set_xticklabels(xticklabels)    
-        ax.set_xlabel('Hz')
+        ytick_inc = int(nf / N_freqlabels)
+        yticks = np.arange(0, self.frequency_axis.size, ytick_inc)
+        yticklabels = np.round(self.frequency_axis, 2)[::ytick_inc]
+        ax.set_yticks(yticks)
+        ax.set_yticklabels(yticklabels)    
+        ax.set_ylabel('Hz')
 
         ax.set_title("Power spectral densities")
         return ax
