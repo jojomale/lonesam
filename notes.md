@@ -106,6 +106,12 @@ we plot the entire available time range
     be called in child classes (e.g. for sds.db), even if they are 
     not used in the base implementation.
 
+- For new Analyzer: when filtering for timelist, could we make it store the time range psd so that applying a different filter does not require reload? For the CLI it probably does not matter but for interactive use in ipython/jupyter it might be nice if you don't have to reload everything when you change the timelist.
+
+
+# Misc
+- https://www.pythonmorsels.com/making-read-only-attribute/#a-property-is-like-an-auto-updating-attribute
+
 
 # Docs
 - https://sphinx-argparse.readthedocs.io/en/stable/index.html

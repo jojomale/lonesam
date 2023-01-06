@@ -745,7 +745,7 @@ class BaseProcessedData():
             self.seconds_per_window = fin.attrs['seconds_per_window']
             self.startdate = UTC(*fin.attrs['starttime'])
             self.enddate = UTC(*fin.attrs['endtime'])
-            self.stationcode = fin.attrs['stationcode']
+            self.stationcode = fin.attrs['stationcode'].decode()
             self.amplitudes = np.array(fin['amplitudes'])
             self.frequency_axis = np.array(fin['frequency_axis'])
             self.psds = np.array(fin['psds'])
@@ -942,19 +942,9 @@ class BaseProcessedData():
         self._check_shape_vs_time()
                 
 
-    def fill_days(self):
-        """
-        Extend time range to midnight of start/end day by
-        filling time series with Nans.
 
-        Startdate YYYY-MM-DDThh:mm:ss is set to YYYY-MM-DDT00:00:00,
-        enddate YYYY-MM-DDThh:mm:ss is set to 
-        YYYY-MM-DDT00:00:00 + 1day.
-
-        Used to prepare data for reshaping when plotting amplitudes.
-        """
-
-        self.logger.info("Filling data with Nans fo fill days")
+    
+    def get_samples_to_midnight(self):
         seconds_per_ydim = 24*3600
         samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
         print(samples_per_ydim)
@@ -965,26 +955,82 @@ class BaseProcessedData():
         assert new_startdate <= self.startdate, "new startdate > old"
         assert new_enddate >= self.enddate, "new enddate < old"
 
-        ns_front = int((self.startdate - new_startdate) / self.seconds_per_window)
-        ns_back = int((new_enddate - self.enddate) / self.seconds_per_window)
-        self.logger.debug("Extening front by {:g}, back by {:g} samples.".format(
+        ns_front = int((self.startdate - new_startdate) / 
+                        self.seconds_per_window)
+        ns_back = int((new_enddate - self.enddate) / 
+                        self.seconds_per_window)
+        return ns_front, ns_back
+
+
+    # def _get_amplitude_matrix(self):
+    #     seconds_per_ydim = 24*3600
+    #     samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+    #     A = self.amplitudes.reshape(-1, samples_per_ydim).T
+    #     return A
+
+
+    def reshape_amps_to_days(self):
+        ns_front, ns_back = self.get_samples_to_midnight()
+        self.logger.debug(
+            "Extening front by {:g}, back by {:g} samples.".format(
                 ns_front, ns_back
         ))
-        #ns_back = int(samples_per_ydim - ns_back)
 
         A = self.amplitudes.copy()
         A = np.insert(A, 0, np.ones(ns_front)*np.nan)
         A = np.append(A, np.ones(ns_back)*np.nan)
 
-        P = self.psds.copy()
-        nf = P.shape[-1]
-        P = np.vstack((np.ones((ns_front, nf))*np.nan, 
-                        P, 
-                        np.ones((ns_back, nf))*np.nan))
+        seconds_per_ydim = 24*3600
+        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+    
+        A = A.reshape(-1, samples_per_ydim).T
+        return A
+
+    
+    
+    # def fill_days(self):
+    #     """
+    #     Extend time range to midnight of start/end day by
+    #     filling time series with Nans.
+
+    #     Startdate YYYY-MM-DDThh:mm:ss is set to YYYY-MM-DDT00:00:00,
+    #     enddate YYYY-MM-DDThh:mm:ss is set to 
+    #     YYYY-MM-DDT00:00:00 + 1day.
+
+    #     Used to prepare data for reshaping when plotting amplitudes.
+    #     """
+
+    #     self.logger.info("Filling data with Nans fo fill days")
+    #     seconds_per_ydim = 24*3600
+    #     samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+    #     print(samples_per_ydim)
+
+    #     new_startdate = UTC(self.startdate.date)
+    #     new_enddate = UTC(self.enddate.date) + seconds_per_ydim
+
+    #     assert new_startdate <= self.startdate, "new startdate > old"
+    #     assert new_enddate >= self.enddate, "new enddate < old"
+
+    #     ns_front = int((self.startdate - new_startdate) / self.seconds_per_window)
+    #     ns_back = int((new_enddate - self.enddate) / self.seconds_per_window)
+    #     self.logger.debug("Extening front by {:g}, back by {:g} samples.".format(
+    #             ns_front, ns_back
+    #     ))
+    #     #ns_back = int(samples_per_ydim - ns_back)
+
+    #     A = self.amplitudes.copy()
+    #     A = np.insert(A, 0, np.ones(ns_front)*np.nan)
+    #     A = np.append(A, np.ones(ns_back)*np.nan)
+
+    #     P = self.psds.copy()
+    #     nf = P.shape[-1]
+    #     P = np.vstack((np.ones((ns_front, nf))*np.nan, 
+    #                     P, 
+    #                     np.ones((ns_back, nf))*np.nan))
         
-        self.set_data(A, P, self.frequency_axis)
-        self.set_time(new_startdate, new_enddate)
-        self._check_shape_vs_time()
+    #     self.set_data(A, P, self.frequency_axis)
+    #     self.set_time(new_startdate, new_enddate)
+    #     self._check_shape_vs_time()
 
 
     def extend_from_file(self, file):
@@ -1014,7 +1060,18 @@ class BaseProcessedData():
         # new.from_file(file)
         # self.extend(new)
         
-    
+    @property
+    def N_windows(self):
+        """
+        Sets number of expected samples from start & end date property.
+        """
+        if self.startdate is not None and self.enddate is not None:
+            return int((self.enddate-self.startdate) // 
+                            self.seconds_per_window)
+        else:
+            return None
+        
+
     def set_time(self, starttime, endtime):
         if starttime is not None:
             starttime = UTC(starttime)
@@ -1023,11 +1080,11 @@ class BaseProcessedData():
         self.startdate = starttime
         self.enddate = endtime
 
-        if self.startdate is not None and self.enddate is not None:
-            self.N_windows = int((self.enddate-self.startdate) // 
-                            self.seconds_per_window)
-        else:
-            self.N_windows = None
+        # if self.startdate is not None and self.enddate is not None:
+        #     self.N_windows = int((self.enddate-self.startdate) // 
+        #                     self.seconds_per_window)
+        # else:
+        #     self.N_windows = None
 
 
         
@@ -1167,6 +1224,8 @@ class BaseProcessedData():
         Throws IOError if not.
         """
         if self.stationcode != new.stationcode:
+            #print("old:", self.stationcode)
+            #print("new", new.stationcode)
             self.logger.error("Station codes are different! " +
                 "Cannot extend existing data.")
             raise IOError("Station codes are different! " +
@@ -1201,8 +1260,11 @@ class BaseProcessedData():
             "Time incr & format for time / y: {:g} {}".format(
                 dtinc, dtflag))
         #print(dtflag, dtinc)
-        dateax = np.arange(self.startdate, 
-                            self.enddate,
+        new_startdate = UTC(self.startdate.date)
+        new_enddate = UTC(self.enddate.date) + seconds_per_ydim
+
+        dateax = np.arange(new_startdate, 
+                            new_enddate,
                             dtinc,
                         dtype='datetime64[{}]'.format(dtflag))
 
@@ -1217,11 +1279,7 @@ class BaseProcessedData():
         return dateax, timeax
 
 
-    def _get_amplitude_matrix(self):
-        seconds_per_ydim = 24*3600
-        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
-        A = self.amplitudes.reshape(-1, samples_per_ydim).T
-        return A
+
 
 
     def plot_amplitudes(self, ax=None):
@@ -1244,8 +1302,9 @@ class BaseProcessedData():
             fig, ax = plt.subplots(1,1)
 
         
-        self.fill_days()
-        A = self._get_amplitude_matrix()
+        #self.fill_days()
+        #A = self._get_amplitude_matrix()
+        A = self.reshape_amps_to_days()
         nt, nd = A.shape
 
         dateax, timeax = self._get_date_and_time_axis_for_amplitude_matrix()

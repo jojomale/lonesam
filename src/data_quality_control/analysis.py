@@ -29,8 +29,259 @@ module_logger = logging.getLogger(logger.name+'.analysis')
 wildcards = ["?", "*"]
 
 
+class Analyzer(base.BaseProcessedData):
+    def __init__(self, 
+                 datadir, nslc_code, fileunit="year",
+                ):
+        super().__init__(stationcode=nslc_code)
+        self.datadir = datadir
+        self.fileunit  = fileunit
+        self.iter_time = util.TIME_ITERATORS[self.fileunit]
+        
+        # Get fmtstr of data files
+        fmtstr_base, sep, fmtstr_time = util.FNAME_FMTS[self.fileunit].rpartition("_")
+        self.fmtstr = (fmtstr_base.format(
+                        outdir=self.datadir, **self.nslc_as_dict()) + 
+                        sep + fmtstr_time)
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"Analyzer")
+        self.logger.setLevel(logging.DEBUG)
 
-class Analyzer():
+
+    def nslc_as_dict(self):
+        d = {k: v for k, v in zip(["network", "station", "location", "channel"], 
+                                  self.stationcode.split("."))}
+        return d
+
+    def get_available_datafiles(self):
+        """
+        Return list with all available HDF5-filenames for 
+        self.stationcode in self.datadir
+        """
+        #return glob(self.fmtstr.rpartition("_")[0] + "*.hdf5")
+        self.logger.info("Looking for pattern " + str(Path(self.datadir).joinpath(
+                        self.stationcode+"_"+util.FNAME_WILDCARD[self.fileunit]+".hdf5")))
+        return [str(f) for f in 
+                Path(self.datadir).glob(self.stationcode+"_"+util.FNAME_WILDCARD[self.fileunit]+".hdf5")]
+
+
+    def get_available_timerange(self):
+        """
+        Get list of available files and read startdate of first 
+        and enddate of last file in sorted list.
+        """
+        flist = self.get_available_datafiles()
+        flist.sort()
+        data = base.BaseProcessedData().from_file(flist[0])
+        data.trim_nan()
+        startdate = data.startdate
+
+        data = base.BaseProcessedData().from_file(flist[-1])
+        data.trim_nan()
+        enddate = data.enddate
+        return startdate, enddate
+
+
+    def _get_filenames(self, starttime, endtime):
+        """
+        Get filenames within time range.
+        """
+        
+        logger.info("Looking for data file %s" % self.fmtstr)
+        files = []
+        
+        for _starttime, _endtime in self.iter_time(starttime, endtime):
+            files.append(self.fmtstr.format(year=_starttime.year, 
+                                        month=_starttime.month, 
+                                        day=_starttime.day,
+                                        hour=_starttime.hour))
+   
+        return sorted(files)
+
+
+    def get_data(self, starttimes, endtime=None):
+        """
+        Load amplitudes, psds and metadata from HDF5-files for
+        specified times.
+
+        `starttimes` can be given as array-like object containing
+        UTCDateTimes or a single UTCDateTime. In the first case
+        Psds are loaded only for the windows corresponding to 
+        the times in `starttimes`. In the second case, `endtime`
+        must be given as UTCDateTime. Psds are loaded for the 
+        entire range between start and end time.
+
+        If list of starttimes is given, starttime and endtime properties
+        of the `Analyzer` are set to minimum and maximum times
+        in list.
+
+        Amplitudes are always loaded for the entire range between
+        `starttime` and `endtime`.
+
+        Parameters
+        --------------
+        starttimes : array-like or UTCDateTime
+            If UTCDateTime, we expect also `endtime` as UTCDateTime.
+            PSDs are loaded for the time range between start and endtime.
+            if array-like, `endtime` is ignored. Psds are loaded for 
+            windows listed in starttimes only.
+        endtime : None or UTCDateTime
+            only required if `starttimes` is UTCDateTime. End of time
+            range for data selection.
+        """
+        
+        if any([char in self.stationcode for char in wildcards]):
+            raise RuntimeError("Station code {} ".format(self.stationcode) + 
+                "contains wildcard characters. " + 
+                "Can only get data for defined netw.stat.loc.chan!")
+
+        self._reset()
+
+        if isinstance(starttimes, UTC):
+            if not isinstance(endtime, UTC):
+                endtime = UTC()
+            starttimes = [starttimes, endtime]
+            self.timerange = True
+        elif isinstance(starttimes, (list, np.ndarray, tuple)):
+            self.timerange = False
+        else:
+            raise UserWarning("Need to give either list of times or" + 
+                            "start and endtime of time range. " + 
+                            "Times must be obspy.UTCDateTimes.")
+
+        self.logger.debug("timerange is set to {}".format(self.timerange))
+        starttimes = sorted(starttimes)
+        etime = starttimes[-1]
+        stime = starttimes[0]
+            
+        self.files = self._get_filenames(stime, etime)
+        #print("Before loading", self.stationcode)
+        for fname in self.files:
+            logger.debug("Loading %s" % fname)
+            self.extend_from_file(fname)
+            #print("During load", self.stationcode)
+
+        self.trim_nan()
+        #self.fill_days()
+        self.check_if_requested_times_are_available(stime, etime)
+        self.logger.info("Available time range in data: {}-{}".format(
+            self.startdate, self.enddate
+        ))
+        self._check_shape_vs_time()
+        self.timeax_psd = self._get_psd_datetimeax()
+
+        if not self.timerange:
+            self.filter_psds_for_times(starttimes)
+        
+
+    def _reset(self):
+        for attr in ["amplitude_frequencies",
+                    "seconds_per_window",
+                    "startdate", "enddate", 
+                    "amplitudes", "psds", "frequency_axis", 
+                    ]:
+            try:
+                self.__setattr__(attr, None)
+            except AttributeError:
+                continue
+
+
+    def check_if_requested_times_are_available(self, stime, etime):
+        ## Reduce start/end time to those in self if out of available range
+        if stime > self.enddate:
+            self._reset()
+            msg = ("Requested time range starts after data is available." + 
+                        "Data available from {} - {}").format(
+                            *self.get_available_timerange())
+            self.logger.exception(msg)
+            raise RuntimeError(msg)
+
+        if etime <= self.startdate:
+            self._reset()
+            msg = ("Requested time range ends before data is available." + 
+                            "Data available from {} - {}").format(
+                            *self.get_available_timerange())
+            self.logger.exception(msg)
+            raise RuntimeError(msg)
+        
+        if  stime < self.startdate:      
+            stime = self.startdate
+            self.logger.info("Adjusting starttime to available: {}".format(stime))
+
+        if self.enddate < etime:
+            etime = self.enddate
+            self.logger.info("Adjusting endtime to available: {}".format(etime))
+        #self.set_time(stime, etime)
+
+
+        # print(len(starttimes))
+        # print(timerange)
+
+        #inds_amp, inds_psd, timeax_psd = self._get_data_indices(
+        #    DATA, starttimes)
+        #self.logger.debug("Indices amplitude: {}".format(str(inds_amp)))
+        #self.logger.debug("Indices PSD: {}".format(str(inds_psd)))
+        
+        # ## It might make more sense to add the DATA directly
+        # self.amps = DATA._get_amplitude_matrix()
+        # self.amp_axis = DATA._get_date_and_time_axis_for_amplitude_matrix()
+        # self.psds = DATA.psds
+        # #self.logger.debug(self.psds.shape)
+        # self.freqax = DATA.frequency_axis
+        # #self.proclen_seconds = DATA.proclen_seconds
+        # self.winlen_seconds = DATA.seconds_per_window
+        # self.nwin = self.amps.shape[1]
+        # self.timeax_psd = DATA._get_psd_datetimeax()
+        # self.amplitude_frequency_range = DATA.amplitude_frequencies
+        # return DATA
+
+    def filter_psds_for_times(self, timelist):
+        self.logger.debug("len(input timelist): {:d}".format(
+            len(timelist)))
+        timelist = [t for t in timelist if 
+                t >= self.startdate and t < self.enddate]
+        #print(starttimes)
+        self.logger.debug("len(timelist) within available time: {:d}".format(
+            len(timelist)))
+        timeax = np.array([np.datetime64(t) for t in timelist])
+        time_idx = [int((t - self.startdate)/self.seconds_per_window )
+                    for t in timelist]
+        self.timeax_psd = timeax
+        self.psds = self.psds[time_idx,:]
+        #self.logger.debug("Returning indices for timelist")
+        #inds_amp, inds_psd = util._get_data_indices(DATA, starttimes)
+        #self.logger.debug("Inds_psd: {:g}".format(len(inds_psd)))
+        #self.logger.debug("max ind {:g}".format(max(inds_psd)))
+        #return inds_amp, inds_psd, timeax_psd 
+        #return timelist, timeax, time_idx
+
+
+    def __repr__(self) -> str:
+        s1 = "Analyzer for station {}".format(self.stationcode)
+        datadir = "Datadir: {}".format(str(self.datadir))
+        fileunit = "HDF5-file covers 1 {}".format(self.fileunit)
+        fmtstr = "Filename pattern: {}".format(self.fmtstr)
+        loglevel = "Loglevel: {}".format(self.logger.level)
+
+        try:
+            l1 = "I have data for {} - {}".format(self.startdate, self.enddate)
+            shp1 = "Amplitude shape = {}".format(self.amplitudes.shape)
+            shp2 = "PSD shape = {}".format(self.psds.shape)
+            pr1 = "Seconds per window = {:g}".format(self.seconds_per_window)
+            pr2 = "Amplitude for {:g} - {:g} Hz".format(
+                *self.amplitude_frequencies)
+
+            s2 = "\n".join([l1, shp1, shp2, pr1, pr2])
+        except AttributeError as e:
+            s2 = "No data attached."
+            self.logger.debug(e)
+        
+        return "\n".join([s1, datadir, fileunit, fmtstr, loglevel, s2])
+
+
+
+
+class Analyzer_old():
     def __init__(self, 
                  datadir, nslc_code, fileunit="year",
                 #stime="00:00", etime="23:59:59:999999"
