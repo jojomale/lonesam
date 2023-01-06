@@ -728,6 +728,7 @@ class BaseProcessedData():
 
         self.logger.debug("Initial range: {} - {}".format(self.startdate, self.enddate))
 
+
     def get_nslc(self):
         """
         Split station code into network, station, 
@@ -962,11 +963,6 @@ class BaseProcessedData():
         return ns_front, ns_back
 
 
-    # def _get_amplitude_matrix(self):
-    #     seconds_per_ydim = 24*3600
-    #     samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
-    #     A = self.amplitudes.reshape(-1, samples_per_ydim).T
-    #     return A
 
 
     def reshape_amps_to_days(self):
@@ -1056,9 +1052,7 @@ class BaseProcessedData():
         # new data at the right place and fill potential gaps.
         # Read the new data
         self += BaseProcessedData().from_file(file)
-        # new = BaseProcessedData()
-        # new.from_file(file)
-        # self.extend(new)
+        
         
     @property
     def N_windows(self):
@@ -1079,13 +1073,6 @@ class BaseProcessedData():
             endtime = UTC(endtime) 
         self.startdate = starttime
         self.enddate = endtime
-
-        # if self.startdate is not None and self.enddate is not None:
-        #     self.N_windows = int((self.enddate-self.startdate) // 
-        #                     self.seconds_per_window)
-        # else:
-        #     self.N_windows = None
-
 
         
     def __iadd__(self, new):
@@ -1234,18 +1221,6 @@ class BaseProcessedData():
             return True
 
     
-    # def _plotly_amplitudes(self):
-    #     z = self.amplitudes #np.clip(AMP, None,  a_max=5.5)
-    #     sh_0, sh_1 = z.shape
-    #     y, x = np.linspace(0, sh_0-1, sh_0), np.linspace(0, sh_1-1, sh_1)
-    #     fig = go.Figure(data=[go.Surface(z=z, x=x, y=y, name='amplitude', cmin=2, cmax=None)])
-    #     fig.update_layout(title='75%-amplitude', autosize=True,
-    #                       width=800, height=500,
-    #                       scene=dict(aspectmode='manual', aspectratio=dict(x=1, y=2, z=0.5))
-    #                       #margin=dict(l=65, r=50, b=65, t=90)
-    #                      )
-    #     fig.show()
-
 
     def _get_date_and_time_axis_for_amplitude_matrix(self):
         """
@@ -1277,8 +1252,6 @@ class BaseProcessedData():
         timeax = np.arange(0, samples_per_ydim*dtinc, np.timedelta64(dtinc, dtflag))
 
         return dateax, timeax
-
-
 
 
 
