@@ -271,7 +271,7 @@ class GenericProcessor():
                 nscproc = NSCProcessor(n, s, l, c, self.client,
                                 self.invclient, procparams=self.proc_params)
                 #print(nscproc)
-                print()
+                #print()
                 self.logger.debug("Times passed to nscprocessor: {} - {}".format(
                     _starttime, _endtime
                 ))
@@ -713,6 +713,10 @@ class BaseProcessedData():
                 seconds_per_window=None, 
                 #proclen_seconds=None
                 ):
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"BaseProcessedData")
+        self.logger.setLevel(logging.DEBUG)
+
         self.amplitudes = None
         self.psds = None
         self.frequency_axis = None
@@ -720,12 +724,8 @@ class BaseProcessedData():
         self.amplitude_frequencies = amplitude_frequencies
         self.seconds_per_window = seconds_per_window
         # self.proclen_seconds = proclen_seconds
-        self.set_time(startdate, enddate)
         
-        self.logger = logging.getLogger(module_logger.name+
-                            '.'+"BaseProcessedData")
-        self.logger.setLevel(logging.DEBUG)
-
+        self.set_time(startdate, enddate)
         self.logger.debug("Initial range: {} - {}".format(self.startdate, self.enddate))
 
 
@@ -861,16 +861,17 @@ class BaseProcessedData():
             frequency axis corresponding to psds of shape
             ``(n_frequencies,)``
         """
+        
         # make sure shapes of data are consistent
-        if amplitudes.shape != psds.shape[:-1]:
+        if amplitudes.size != psds.shape[0]:
             msg = ("Added data has inconsistent shapes!"+
                 "amplitudes: %s; psds %s" % (amplitudes.shape, psds.shape))
             self.logger.warn(msg)
             raise RuntimeWarning(msg)
         if psds.shape[-1] != freqs.size:
             msg = ("Added frequencies and psds have inconsisent size!" +
-                    "psds: {}".format(psds.shape[-1] + 
-                    ", freqs: {}".format(freqs.size))
+                    "psds: {:d}".format(psds.shape[-1]) + 
+                    ", freqs: {:d}".format(freqs.size)
                     )
             self.logger.warn(msg)       
             raise RuntimeWarning(msg)
@@ -938,7 +939,7 @@ class BaseProcessedData():
             "Removed {} samples from beginning and {} samples from end".format(n, m))
         self.logger.debug("Shapes after trim_nan: {}, {}".format(
                 self.amplitudes.shape, self.psds.shape))
-        print((self.enddate - self.startdate) / self.seconds_per_window,  self.amplitudes.size)
+        #print((self.enddate - self.startdate) / self.seconds_per_window,  self.amplitudes.size)
         
         self._check_shape_vs_time()
                 
@@ -948,7 +949,7 @@ class BaseProcessedData():
     def get_samples_to_midnight(self):
         seconds_per_ydim = 24*3600
         samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
-        print(samples_per_ydim)
+        #print(samples_per_ydim)
 
         new_startdate = UTC(self.startdate.date)
         new_enddate = UTC(self.enddate.date) + seconds_per_ydim
@@ -960,13 +961,13 @@ class BaseProcessedData():
                         self.seconds_per_window)
         ns_back = int((new_enddate - self.enddate) / 
                         self.seconds_per_window)
-        return ns_front, ns_back
+        return ns_front, ns_back, new_startdate, new_enddate
 
 
 
 
     def reshape_amps_to_days(self):
-        ns_front, ns_back = self.get_samples_to_midnight()
+        ns_front, ns_back, new_startdate, new_enddate = self.get_samples_to_midnight()
         self.logger.debug(
             "Extening front by {:g}, back by {:g} samples.".format(
                 ns_front, ns_back
@@ -984,49 +985,34 @@ class BaseProcessedData():
 
     
     
-    # def fill_days(self):
-    #     """
-    #     Extend time range to midnight of start/end day by
-    #     filling time series with Nans.
+    def fill_days(self):
+        """
+        Extend time range to midnight of start/end day by
+        filling time series with Nans.
 
-    #     Startdate YYYY-MM-DDThh:mm:ss is set to YYYY-MM-DDT00:00:00,
-    #     enddate YYYY-MM-DDThh:mm:ss is set to 
-    #     YYYY-MM-DDT00:00:00 + 1day.
+        Startdate YYYY-MM-DDThh:mm:ss is set to YYYY-MM-DDT00:00:00,
+        enddate YYYY-MM-DDThh:mm:ss is set to 
+        YYYY-MM-DDT00:00:00 + 1day.
 
-    #     Used to prepare data for reshaping when plotting amplitudes.
-    #     """
+        Used to prepare data for reshaping when plotting amplitudes.
+        """
 
-    #     self.logger.info("Filling data with Nans fo fill days")
-    #     seconds_per_ydim = 24*3600
-    #     samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
-    #     print(samples_per_ydim)
+        self.logger.info("Filling data with Nans fo fill days")
+        ns_front, ns_back, new_startdate, new_enddate = self.get_samples_to_midnight()
 
-    #     new_startdate = UTC(self.startdate.date)
-    #     new_enddate = UTC(self.enddate.date) + seconds_per_ydim
+        A = self.amplitudes.copy()
+        A = np.insert(A, 0, np.ones(ns_front)*np.nan)
+        A = np.append(A, np.ones(ns_back)*np.nan)
 
-    #     assert new_startdate <= self.startdate, "new startdate > old"
-    #     assert new_enddate >= self.enddate, "new enddate < old"
-
-    #     ns_front = int((self.startdate - new_startdate) / self.seconds_per_window)
-    #     ns_back = int((new_enddate - self.enddate) / self.seconds_per_window)
-    #     self.logger.debug("Extening front by {:g}, back by {:g} samples.".format(
-    #             ns_front, ns_back
-    #     ))
-    #     #ns_back = int(samples_per_ydim - ns_back)
-
-    #     A = self.amplitudes.copy()
-    #     A = np.insert(A, 0, np.ones(ns_front)*np.nan)
-    #     A = np.append(A, np.ones(ns_back)*np.nan)
-
-    #     P = self.psds.copy()
-    #     nf = P.shape[-1]
-    #     P = np.vstack((np.ones((ns_front, nf))*np.nan, 
-    #                     P, 
-    #                     np.ones((ns_back, nf))*np.nan))
+        P = self.psds.copy()
+        nf = P.shape[-1]
+        P = np.vstack((np.ones((ns_front, nf))*np.nan, 
+                        P, 
+                        np.ones((ns_back, nf))*np.nan))
         
-    #     self.set_data(A, P, self.frequency_axis)
-    #     self.set_time(new_startdate, new_enddate)
-    #     self._check_shape_vs_time()
+        self.set_data(A, P, self.frequency_axis)
+        self.set_time(new_startdate, new_enddate)
+        self._check_shape_vs_time()
 
 
     def extend_from_file(self, file):
@@ -1073,7 +1059,8 @@ class BaseProcessedData():
             endtime = UTC(endtime) 
         self.startdate = starttime
         self.enddate = endtime
-
+        self.logger.info("Start/end time set to: {} - {}".format(
+            self.startdate, self.enddate))
         
     def __iadd__(self, new):
         """

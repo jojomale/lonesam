@@ -72,10 +72,12 @@ class Analyzer(base.BaseProcessedData):
         """
         flist = self.get_available_datafiles()
         flist.sort()
+        self.logger.debug("Looking for earliest available time")
         data = base.BaseProcessedData().from_file(flist[0])
         data.trim_nan()
         startdate = data.startdate
 
+        self.logger.debug("Looking for latest available time")
         data = base.BaseProcessedData().from_file(flist[-1])
         data.trim_nan()
         enddate = data.enddate
@@ -157,7 +159,8 @@ class Analyzer(base.BaseProcessedData):
             raise RuntimeError("Station code {} ".format(self.stationcode) + 
                 "contains wildcard characters. " + 
                 "Can only get data for defined netw.stat.loc.chan!")
-
+        
+        self.logger.info("Renewing data")
         self._reset()
         starttimes = self._check_times(starttimes, endtime)
         etime = starttimes[-1]
@@ -180,6 +183,54 @@ class Analyzer(base.BaseProcessedData):
         if not self.timerange:
             self.filter_psds_for_times(starttimes)
         
+
+    def trim(self, starttime=None, endtime=None, 
+                fill_value=None):
+        """
+        Remove data outside of start/end time.
+        """
+        self.logger.debug("Trimming data if necessary")
+
+        if starttime is None:
+            starttime = self.startdate
+        if endtime is None:
+            endtime = self.enddate
+
+        nbeg = int((starttime - self.startdate) / 
+                self.seconds_per_window)
+        if nbeg >= 0:
+            new_amps = self.amplitudes[nbeg:]
+            new_psds = self.psds[nbeg:,:]
+        elif fill_value is not None:
+            fill = np.ones((-nbeg, self.frequency_axis.size))*fill_value
+            new_amps = np.hstack((fill[:,0], self.amplitudes))
+            new_psds = np.vstack((fill, self.psds))
+        else:
+            new_amps = self.amplitudes
+            new_psds = self.psds
+            starttime = self.startdate
+        
+        nend = int((self.enddate - endtime) / 
+                self.seconds_per_window)
+        if nend >= 0:
+            new_amps = new_amps[:-nend]
+            new_psds = new_psds[:-nend,:]
+        elif fill_value is not None:
+            fill = np.ones((-nend, self.frequency_axis.size))*fill_value
+            new_amps = np.hstack((new_amps, fill[:,0]))
+            new_psds = np.vstack((new_psds, fill))
+        else:
+            endtime = self.enddate
+
+        self.set_data(new_amps, new_psds, self.frequency_axis)
+        self.set_time(starttime, endtime)
+        self.timeax_psd = self._get_psd_datetimeax()
+        self._check_shape_vs_time()
+        self.logger.debug("New shapes: amps={}, psds={}".format(
+                self.amplitudes.shape, self.psds.shape
+        ))
+        
+
 
     def _reset(self):
         for attr in ["amplitude_frequencies",
@@ -471,6 +522,22 @@ class Analyzer(base.BaseProcessedData):
                 raise
 
 
+
+
+class Interpolator(Analyzer):
+    def __init__(self, datadir, nslc_code, fileunit="year"):
+        super().__init__(datadir, nslc_code, fileunit)
+        
+    def interpolate(self):
+        TSTA, TEND = self.get_available_timerange()
+        
+        for tsta, tend in self.iter_time(TSTA, TEND):
+            print(tsta, tend)
+        # for f in files:
+        #     data = base.BaseProcessedData().from_file(f)
+        #     print(f)
+        #     print(data)
+        #     print()
 
 
        
