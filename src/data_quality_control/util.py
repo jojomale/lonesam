@@ -168,7 +168,7 @@ def merge_different_samplingrates(st):
 
 def get_adjacent_frames(tr, starttime, nf, winlen_samples):
     """
-    Reshape vector into (``nf``, ``winlen_samples``). These
+    Reshape obspy trace into (``nf``, ``winlen_samples``). These
     frames do not overlap!.
 
     We slice the trace at ``starttime`` and add as many samples
@@ -199,10 +199,11 @@ def get_adjacent_frames(tr, starttime, nf, winlen_samples):
 def get_overlapping_tapered_frames(tr, starttime, nf, winlen_samples,
                            taper_samples):
     """
-    Splits the vector up into (overlapping) Tukey windows.
+    Splits the trace up into (overlapping) Tukey windows.
     
     A Tukey window combines a boxcar-window with cosine-tapered
-    flanks at the egdes.    
+    flanks at the egdes. The flanks of two successive windows
+    overlap.  
 
     Frames containing any Nans are set entirely to Nan.
     Loosely based on `obspy.signal.util.enframe` but faster.
@@ -230,7 +231,7 @@ def get_overlapping_tapered_frames(tr, starttime, nf, winlen_samples,
     sr = tr.stats.sampling_rate
     
     # Samples in window including tapers
-    nwin = int(winlen_samples + 2*taper_samples)
+    framesize = int(winlen_samples + 2*taper_samples)
     
     # Total number of samples of trace to process
     proclen_samples = int(nf * winlen_samples + 2*taper_samples)
@@ -239,26 +240,93 @@ def get_overlapping_tapered_frames(tr, starttime, nf, winlen_samples,
     x = tr.slice(starttime-taper_samples/sr).data[:proclen_samples]
     
     # Ratio of tapers to total window size
-    a =  2*taper_samples / nwin
-    win = get_window(('tukey', a), nwin, fftbins=False)
+    a =  2*taper_samples / framesize
+    win = get_window(('tukey', a), framesize, fftbins=False)
     
-    # From obspy.signal.enframe()
-    #nx = len(x)
-    #nwin = len(win)
-    if (len(win) == 1):
-        length = win
-    else:
-        length = nwin
-    #nf = int(np.fix((nx - length + winlen_samples) // winlen_samples))
-    # f = np.zeros((nf, length))
-    indf = winlen_samples * np.arange(nf)
-    f = x[np.expand_dims(indf, 1) + 
-          np.expand_dims(np.arange(length), 0)]
+    f = get_overlapping_frames(
+            x, framesize, winlen_samples)
+
+    # # From obspy.signal.enframe()
+    # #nx = len(x)
+    # #nwin = len(win)
+    # if (len(win) == 1):
+    #     length = win
+    # else:
+    #     length = nwin
+    # #nf = int(np.fix((nx - length + winlen_samples) // winlen_samples))
+    # # f = np.zeros((nf, length))
+    # indf = winlen_samples * np.arange(nf)
+    # f = x[np.expand_dims(indf, 1) + 
+    #       np.expand_dims(np.arange(length), 0)]
     f = f * win
     f[np.any(np.isnan(f), axis=1),:] = np.nan
     #no_win, _ = f.shape
     return f, taper_samples
 
+
+def get_overlapping_frames(x, framesize, incsize):
+    """
+    Split array `x` into subarrays (frames) of length 
+    `framesize`, starting every `incsize`-th sample.
+    
+    Parameters
+    ----------------
+    x : np.ndarray (1d)
+        data array
+    framesize : int
+        number of samples per frame
+    incsize : int
+        number of samples between beginning of two 
+        successive frames
+    
+    Returns
+    ---------
+    f : np.ndarray (2D)
+        array of shape 
+        ``(((x.size-framesize) // incsize +1), framesize)``  
+
+
+    Note
+    -----------
+    Only data until the last full frame is used.
+    Trailing samples are truncated in the output.
+    
+    Example
+    -----------
+    >>>> x = np.arange(1,5+1).repeat(3)
+    >>>> print(x)
+    [1 1 1 2 2 2 3 3 3 4 4 4 5 5 5]
+    
+    Adjacent frames without overlaps:
+
+    >>>> f = util.get_overlapping_frames(x, 3, 3)
+    >>>> print(f.shape)
+        (5, 3)
+    >>>> print(f)
+        [[1 1 1]
+        [2 2 2]
+        [3 3 3]
+        [4 4 4]
+        [5 5 5]]
+
+    Overlapping frames:
+
+    >>>> f = util.get_overlapping_frames(x, 5, 3)
+    >>>> print(f.shape)
+        (4, 5)
+    >>>> print(f)
+        [[1 1 1 2 2]
+        [2 2 2 3 3]
+        [3 3 3 4 4]
+        [4 4 4 5 5]]
+    """
+    nf = (x.size-framesize) // incsize +1
+    
+    startidx_of_frame = incsize * np.arange(nf)
+    frames = x[np.expand_dims(startidx_of_frame, 1) + 
+          np.expand_dims(np.arange(framesize), 0)]
+
+    return frames
 
 
 
@@ -414,9 +482,10 @@ def iter_years(startdate, enddate):
         # Check if end-of-year date is larger than acual enddate
         if _enddate > enddate: 
             _enddate = enddate
-            module_logger.debug("Reset enddate to %s" % _enddate)
+            module_logger.debug("Iterator reset enddate to %s" % _enddate)
         # Process 1 year (or less)
-        module_logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
+        module_logger.debug("Time iterator yields %s - %s" % (
+            _startdate, _enddate))
         yield _startdate, _enddate
 
         _startdate = UTC("{:d}-01-01".format(_startdate.year+1))
