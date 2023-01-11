@@ -260,7 +260,8 @@ class GenericProcessor():
         self.starttime = UTC(starttime)
         self.endtime = UTC(endtime)
 
-
+        ofilemanager = ProcessedDataFileManager(self.outdir, 
+                                fileunit=self.fileunit)
         for _starttime, _endtime in self.iter_time(starttime, endtime):
             self.logger.debug("processing {} - {}".format(_starttime, _endtime))
             #if any([self.fileunit == x for x in ["year", "month", "day"]]):
@@ -279,134 +280,20 @@ class GenericProcessor():
                 self.logger.debug("output time range: {} - {}".format(output.startdate, output.enddate)) 
                 output.trim_nan()
                 self.logger.debug("output time range: {} - {}".format(output.startdate, output.enddate))
-                fout = self.get_ofile(nscproc, _starttime, force_new_file)
+                
+                ofilemanager.set_data(output)
+                fout = ofilemanager.get_ofile(force_new_file)
+            
                 with fout:
-                    output.insert_in_file(fout)
+                    try:
+                        output.insert_in_file(fout)
+                    except Exception as e:
+                        fout.close()
+                        raise e
 
 
         walltime = timedelta(seconds=time.time()-T0)
         self.logger.info("Finished. Took %s h" % walltime)
-
-
-    def create_ofile(self, nscprocessor, starttime):
-        """
-        Create output file.
-
-        Note
-        -----
-        Shouldn't this be tied to BaseProcessedData rather than
-        the Processor?
-        """
-        ofilename = self.fname_fmt.format(
-                        outdir=self.outdir,
-                year=starttime.year, 
-                month=starttime.month, 
-                day=starttime.day,
-                hour=starttime.hour,
-                **nscprocessor.nsc_as_dict())
-        
-        fstime, fetime = self.allocate_file_start_end(starttime) 
-        #n_proclen = int((fetime + self.proc_params.proclen_seconds - fstime) / 
-        #                self.proc_params.proclen_seconds)
-        n_windows = int((fetime - fstime) / self.proc_params.winlen_seconds)
-
-        self.logger.info("Creating output file %s" % ofilename)
-        self.logger.info("Starttime=%s, endtime=%s, n_windows=%s" %
-                    (fstime, fetime, n_windows))
-
-        f = h5py.File(ofilename, "w")
-        
-
-        f.create_dataset("amplitudes", 
-                shape=(n_windows,), 
-                            fillvalue=np.nan)
-        nfreqs = self.proc_params.nperseg // 2 + 1
-        f.create_dataset("psds", 
-                        shape=(n_windows, nfreqs), 
-                            fillvalue=np.nan)
-        f.create_dataset("frequency_axis", shape=(nfreqs,), 
-                            fillvalue=np.nan)
-
-        util._create_hdf5_attribs(f, nscprocessor.stationcode,
-                                fstime, fetime,
-                                self.proc_params.amplitude_frequencies,
-                                self.proc_params.winlen_seconds,
-                                self.proc_params.proclen_seconds
-                                )
-    
-        return f
-
-    
-    def get_ofile(self, nscprocessor, starttime, force_new_file=False):
-        """
-        Open or create new output file for results from an
-        ``NSCProcessor``
-
-        Parameters
-        -----------
-        nscprocessor : NSCProcessor
-        starttime : UTCDateTime
-            nominal starttime of file
-        force_new_file : bool [False]
-            If True, always create new, fresh file, i.e.
-            override existing ones.
-        
-        Returns
-        -------------
-        f : h5py.File
-            open file handler
-        """
-        
-        ofilename = self.fname_fmt.format(
-                        outdir=self.outdir,
-                year=starttime.year, 
-                month=starttime.month, 
-                day=starttime.day,
-                hour=starttime.hour,
-                **nscprocessor.nsc_as_dict())
-
-        if force_new_file:
-            return self.create_ofile(nscprocessor, starttime)
-
-        try:
-            f = h5py.File(ofilename, "r+")
-        except FileNotFoundError:
-            f = self.create_ofile(nscprocessor, starttime)
-        return f
-
-
-    def allocate_file_start_end(self, starttime):
-        """
-        Determine datetime of start/end time of data
-        covered in output file depending on ``fileunit``.
-
-        Example
-        ---------
-        - if ``fileunit="year", starttime=UTC("2021-04-10")``: 
-            ``stime=2021-01-01``,
-            ``etime = 2021-12-31``
-        - if ``fileunit="month, starttime=UTC("2021-04-10")``:
-            ``stime = 2021-04-01``,
-            ``etime = 2021-04-30``
-
-        """
-        if self.fileunit == "year":
-            stime = UTC(starttime.year, 1,1,0,0,0)
-            etime = (UTC(starttime.year, 12, 31, 0,0,0) + 
-                    24*3600 ) #- self.proc_params.proclen_seconds)
-        elif self.fileunit == "month":
-            stime = UTC(starttime.year, starttime.month, 1, 0,0,0)
-            etime = (util.get_end_of_month(stime) + 
-                    24*3600 - self.proc_params.proclen_seconds)
-        elif self.starttime == "day":
-            stime = UTC(starttime.year, starttime.month, starttime.day,
-                        0, 0, 0)
-            etime = stime + 3600*24 - self.proc_params.proclen_seconds
-        elif self.fileunit == "hour":
-            stime = UTC(starttime.year, starttime.month, starttime.day,
-                        starttime.hour, 0, 0)
-            etime = stime + 3600
-        return stime, etime
 
 
 
@@ -1382,4 +1269,162 @@ class BaseProcessedData():
         return "\n".join([nsc, s,e,d,shp1,shp2, pr1, pr2])
 
 
+class ProcessedDataFileManager():
+    def __init__(self, outdir,  processeddata=None, fileunit="year") -> None:
+        self.data = processeddata
+        self.outdir = outdir
+        self.fileunit = fileunit
+        self.logger = logging.getLogger(module_logger.name+
+        #                    "."+self.__name__)
+                            '.'+"ProcessedDataFileManager")
+        self.logger.setLevel(logging.DEBUG)
+
+
+    @property
+    def fname_fmt(self):
+        return util.FNAME_FMTS[self.fileunit]
+
+    @property
+    def ofilename(self):
+        ofilename = self.fname_fmt.format(
+                    outdir=self.outdir,
+                year=self.data.startdate.year, 
+                month=self.data.startdate.month, 
+                day=self.data.startdate.day,
+                hour=self.data.startdate.hour,
+                **self.nsc_as_dict()
+                )
+        return ofilename
+
+
+    def set_data(self, processeddata):
+        self.data = processeddata
+
+
+    def nsc_as_dict(self):
+        """
+        Return network, station, location, channel as dict.
+        """
+        nslc = self.data.stationcode.split(".")
+        keys = ["network", "station", "location", "channel"]
+        d = {k: nslc[i] for i, k in enumerate(keys)}
+        return d
+
+
+    def create_ofile(self):
+        """
+        Create output file.
+        """
+        # ofilename = self.fname_fmt.format(
+        #                 outdir=self.outdir,
+        #         year=starttime.year, 
+        #         month=starttime.month, 
+        #         day=starttime.day,
+        #         hour=starttime.hour,
+        #         **self.nsc_as_dict()
+        #         )
+        
+        fstime, fetime = self.allocate_file_start_end() 
+        #n_proclen = int((fetime + self.proc_params.proclen_seconds - fstime) / 
+        #                self.proc_params.proclen_seconds)
+        n_windows = int((fetime - fstime) / self.data.seconds_per_window)
+
+        self.logger.info("Creating output file %s" % self.ofilename)
+        self.logger.info("Starttime=%s, endtime=%s, n_windows=%s" %
+                    (fstime, fetime, n_windows))
+
+        f = h5py.File(self.ofilename, "w")
+        
+
+        f.create_dataset("amplitudes", 
+                shape=(n_windows,), 
+                            fillvalue=np.nan)
+        #nfreqs = self.proc_params.nperseg // 2 + 1
+        nfreqs = self.data.frequency_axis.size
+        f.create_dataset("psds", 
+                        shape=(n_windows, nfreqs), 
+                            fillvalue=np.nan)
+        f.create_dataset("frequency_axis", shape=(nfreqs,), 
+                            fillvalue=np.nan)
+
+        util._create_hdf5_attribs(f, self.data.stationcode,
+                                fstime, fetime,
+                                self.data.amplitude_frequencies,
+                                self.data.seconds_per_window,
+                                #self.proc_params.proclen_seconds
+                                )
+    
+        return f
+
+    
+    def get_ofile(self, force_new_file=False):
+        """
+        Open or create new output file for results from an
+        ``NSCProcessor``
+
+        Parameters
+        -----------
+        nscprocessor : NSCProcessor
+        starttime : UTCDateTime
+            nominal starttime of file
+        force_new_file : bool [False]
+            If True, always create new, fresh file, i.e.
+            override existing ones.
+        
+        Returns
+        -------------
+        f : h5py.File
+            open file handler
+        """
+        
+        # ofilename = self.fname_fmt.format(
+        #                 outdir=self.outdir,
+        #         year=starttime.year, 
+        #         month=starttime.month, 
+        #         day=starttime.day,
+        #         hour=starttime.hour,
+        #         **nscprocessor.nsc_as_dict())
+
+        if force_new_file:
+            return self.create_ofile()
+
+        try:
+            f = h5py.File(self.ofilename, "r+")
+        except FileNotFoundError:
+            f = self.create_ofile()
+        return f
+
+
+    def allocate_file_start_end(self):
+        """
+        Determine datetime of start/end time of data
+        covered in output file depending on ``fileunit``.
+
+        Example
+        ---------
+        - if ``fileunit="year", starttime=UTC("2021-04-10")``: 
+            ``stime=2021-01-01``,
+            ``etime = 2021-12-31``
+        - if ``fileunit="month, starttime=UTC("2021-04-10")``:
+            ``stime = 2021-04-01``,
+            ``etime = 2021-04-30``
+
+        """
+        starttime = self.data.startdate
+        if self.fileunit == "year":
+            stime = UTC(starttime.year, 1,1,0,0,0)
+            etime = (UTC(starttime.year, 12, 31, 0,0,0) + 
+                    24*3600 ) #- self.proc_params.proclen_seconds)
+        elif self.fileunit == "month":
+            stime = UTC(starttime.year, starttime.month, 1, 0,0,0)
+            etime = (util.get_end_of_month(stime) + 24*3600)
+        elif self.starttime == "day":
+            stime = UTC(starttime.year, starttime.month, starttime.day,
+                        0, 0, 0)
+            etime = stime + 3600*24# - self.proc_params.proclen_seconds
+        elif self.fileunit == "hour":
+            stime = UTC(starttime.year, starttime.month, starttime.day,
+                        starttime.hour, 0, 0)
+            etime = stime + 3600
+        return stime, etime
 
