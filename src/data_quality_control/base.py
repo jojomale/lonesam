@@ -1336,6 +1336,8 @@ class BaseProcessedData():
         
         if ax is None:
             fig, ax = plt.subplots(1,1)
+        else:
+            fig = ax.get_figure()
 
         if tax is None:
             tax = self._get_psd_datetime_labels(N_timeticks)

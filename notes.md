@@ -108,6 +108,8 @@ we plot the entire available time range
 
 - For new Analyzer: when filtering for timelist, could we make it store the time range psd so that applying a different filter does not require reload? For the CLI it probably does not matter but for interactive use in ipython/jupyter it might be nice if you don't have to reload everything when you change the timelist.
 
+- to get metadata from HDF5 files (Interpolator) is it more efficient to access metadata dirctly?
+
 
 # Misc
 - https://www.pythonmorsels.com/making-read-only-attribute/#a-property-is-like-an-auto-updating-attribute

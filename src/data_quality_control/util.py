@@ -33,7 +33,7 @@ def get_fdsn_or_routing_client(server_or_routingservice):
 
 
 def _create_hdf5_attribs(f, stationcode, starttime, endtime, 
-                        freqs, winlen_seconds, proclen_seconds):
+                        freqs, winlen_seconds):
     """
     Set meta data in hdf5-file as attributes.
 
@@ -611,8 +611,6 @@ def iter_timeinc(startdate, enddate, inc, timelevel):
             _enddate = enddate
             module_logger.debug("Reset enddate to %s" % _enddate)
         # Process 1 year (or less)
-        module_logger.info("\nProcessing %s - %s" % (_startdate, _enddate))
-        yield _startdate, _enddate
 
         _startdate = _startdate + inc
         _enddate = _startdate + inc

@@ -527,18 +527,119 @@ class Analyzer(base.BaseProcessedData):
 class Interpolator(Analyzer):
     def __init__(self, datadir, nslc_code, fileunit="year"):
         super().__init__(datadir, nslc_code, fileunit)
-        
-    def interpolate(self):
-        TSTA, TEND = self.get_available_timerange()
-        
+    
+    
+    def _get_SECONDS_PER_WINDOW(self, TSTA, TEND):
+        """
+        Read first file in list to get window size in seconds.
+        """
+        self.logger.debug("\n\nLooking for window size")
         for tsta, tend in self.iter_time(TSTA, TEND):
-            print(tsta, tend)
-        # for f in files:
-        #     data = base.BaseProcessedData().from_file(f)
-        #     print(f)
-        #     print(data)
-        #     print()
+            self.get_data(tsta, tend)
+            self.logger.debug("Time range to get window size: {} - {}".format(tsta, tend))
+            self.logger.info("Expecting window size is {:g}s".format(self.seconds_per_window))
+            self.SECONDS_PER_WINDOW = self.seconds_per_window
+            break
 
+
+    def _set_check_SECONDS_PER_WINDOW(self):
+        if not hasattr(self, "SECONDS_PER_WINDOW"):
+            self.logger.info("Expecting window size = {:g}s".format(
+                self.seconds_per_window))
+            self.SECONDS_PER_WINDOW = self.seconds_per_window
+        elif self.SECONDS_PER_WINDOW != self.seconds_per_window:
+            msg = "Window size changed"
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+
+            
+    def _check_framed_shape(self, x, X, kernel_shift, label=""):
+        nk, ks = X.shape
+        ns = (nk-1)*kernel_shift+ks
+        assert ns == x.size, \
+            "{:d} of {} timeseries remain".format(x.size-ns, label)
+    
+    
+    def _interpolate(self, kernel_size, kernel_shift):
+        x = self.amplitudes
+        X = util.get_overlapping_frames(x, 
+                                       kernel_size, kernel_shift)
+        
+        print(x.size, X.shape)
+        self._check_framed_shape(x, X, kernel_shift, "amplitude")
+        amplitudes_ = np.nanmedian(X, axis=1)
+
+        x = self.psds[:,0]
+        X = util.get_overlapping_frames(x, kernel_size, kernel_shift)
+        print(x.size, X.shape)
+        self._check_framed_shape(x, X, kernel_shift, "psd")
+        PSD_ = np.array([np.nanmedian(
+                util.get_overlapping_frames(x, kernel_size, kernel_shift),axis=1) 
+                         for x in self.psds.T]).T
+        
+        return amplitudes_, PSD_
+    
+    
+    def iter_times_kernel(self, tsta, tend, kernel_size, kernel_shift):
+        """
+        Note
+        -------
+        yielded endtime is starttime of last sample plus window size.
+        """
+        new_tsta = None
+        new_tend = None
+        for _tsta, _tend in self.iter_time(tsta, tend):
+            _tend = _tend + 24*3600
+            if not new_tsta:
+                new_tsta = _tsta
+                #_tend = _tend + 24*3600
+            
+            N = int((_tend-new_tsta) / self.SECONDS_PER_WINDOW) 
+            n_kernels, n_left = np.divmod(N, kernel_shift)
+            #n_left = int(samples_left / self.SECONDS_PER_WINDOW)
+            print(N, n_kernels, n_left)
+            
+            #Nadd = (kernel_size - n_left)
+            
+            #tend = tend - n_left*self.SECONDS_PER_WINDOW + kernel_size*self.seconds_per_window
+            new_tend = _tend + (kernel_size-n_left)*self.SECONDS_PER_WINDOW
+            self.logger.debug("Times adjusted to kernel: {} - {}".format(
+                new_tsta, new_tend))
+            
+            yield new_tsta, new_tend
+            
+            new_tsta = new_tend - kernel_size*self.SECONDS_PER_WINDOW 
+            
+      
+    def interpolate(self, kernel_size, kernel_shift=1, outdir="."):
+        TSTA, TEND = self.get_available_timerange()
+        TSTA = UTC(TSTA.date)
+        TEND = UTC(TEND.date)
+        print(self.seconds_per_window)
+        self._get_SECONDS_PER_WINDOW(TSTA, TEND)
+        
+        self.logger.debug("\n\nStarting interpolation\n")
+        for tsta, tend in self.iter_times_kernel(TSTA, TEND, kernel_size, kernel_shift):
+            
+            self.logger.debug("Yielded {} - {}".format(tsta, tend))
+            #tsta = tsta
+            #tend = tend + 24*3600# + (kernel_size-kernel_shift)*self.SECONDS_PER_WINDOW 
+            self.logger.info("Interpolating {:} - {}".format(tsta, tend))
+            self.logger.debug("Getting data...")
+            
+            self.get_data(tsta, tend)
+            self.trim(tsta, tend, fill_value=np.nan)
+            self._set_check_SECONDS_PER_WINDOW()
+            self.logger.debug("Interpolating")
+            #self.logger.debug("{} - {}".format(self.startdate, self.enddate))
+            amplitudes_, psds_ = self._interpolate(kernel_size, kernel_shift)
+            self.set_data(amplitudes_, psds_, self.frequency_axis)
+            self.set_time(tsta, tend+(kernel_shift-kernel_size)*self.SECONDS_PER_WINDOW)
+            self.seconds_per_window = kernel_shift*self.SECONDS_PER_WINDOW
+            self._check_shape_vs_time()
+            
+            self.to_file(outdir)
+            self.logger.debug("\n")
 
        
 
