@@ -89,7 +89,7 @@ class Analyzer(base.BaseProcessedData):
         Get filenames within time range.
         """
         
-        logger.info("Looking for data file %s" % self.fmtstr)
+        self.logger.debug("Looking for data file %s" % self.fmtstr)
         files = []
         
         for _starttime, _endtime in self.iter_time(starttime, endtime):
@@ -170,11 +170,12 @@ class Analyzer(base.BaseProcessedData):
         self.files = self._get_filenames(stime, etime)
         #print("Before loading", self.stationcode)
         for fname in self.files:
-            logger.debug("Loading %s" % fname)
+            #self.logger.info("Loading %s" % fname)
             self.extend_from_file(fname)
             #print("During load", self.stationcode)
 
         self.trim_nan()
+        #self.logger.debug("Analyzer here")
         #self.fill_days()
         self._check_if_requested_times_are_available(stime, etime)
         
@@ -529,7 +530,9 @@ class Interpolator(Analyzer):
     def __init__(self, datadir, nslc_code,
                 fileunit="year"):
         super().__init__(datadir, nslc_code, fileunit)
-    
+        self.logger = logging.getLogger(module_logger.name+
+                            '.'+"Interpolator")
+        self.logger.setLevel(logging.DEBUG)
     
     def _get_WINLEN_SECONDS(self, TSTA, TEND):
         """
@@ -595,7 +598,7 @@ class Interpolator(Analyzer):
             _tend = _tend + 24*3600
             if not new_tsta:
                 new_tsta = _tsta
-                
+
             new_tend = _tend + (kernel_size-kernel_shift)*self.WINLEN_SECONDS
             self.logger.debug("Times adjusted to kernel: {} - {}".format(
                 new_tsta, new_tend))
@@ -621,21 +624,30 @@ class Interpolator(Analyzer):
 
 
     def interpolate(self, kernel_size, kernel_shift=1, outdir=".",
+            starttime=None, endtime=None,
             force_new_file=False):
 
-        
+        if starttime is None or endtime is None:
+            self.logger.info("\n\ninterpolate(): Looking up available timerange "+
+                "because start or endtime is None.\n")
+            TSTA, TEND = self.get_available_timerange()
+            TSTA = UTC(TSTA.date)
+            TEND = UTC(TEND.date)
+            if starttime is None:
+                starttime = TSTA
+            if endtime is None:
+                endtime = TEND
 
-        TSTA, TEND = self.get_available_timerange()
-        TSTA = UTC(TSTA.date)
-        TEND = UTC(TEND.date)
-        self._get_WINLEN_SECONDS(TSTA, TEND)
+        self._get_WINLEN_SECONDS(starttime, endtime)
         self._check_kernelshiftsize(kernel_shift)
         ofilemanager = base.ProcessedDataFileManager(outdir, 
                                 fileunit=self.fileunit)
-        self.logger.debug("\n\nStarting interpolation\n")
-        for tsta, tend in self.iter_times_kernel(TSTA, TEND, kernel_size, kernel_shift):
+
+        self.logger.info("\n\nStarting interpolation\n")
+        for tsta, tend in self.iter_times_kernel(starttime, endtime, 
+                        kernel_size, kernel_shift):
             
-            self.logger.debug("Yielded {} - {}".format(tsta, tend))
+            #self.logger.debug("Yielded {} - {}".format(tsta, tend))
             #tsta = tsta
             #tend = tend + 24*3600# + (kernel_size-kernel_shift)*self.WINLEN_SECONDS 
             self.logger.info("Interpolating {:} - {}".format(tsta, tend))
@@ -648,6 +660,7 @@ class Interpolator(Analyzer):
             amplitudes_, psds_ = self._interpolate(kernel_size, kernel_shift)
             self.set_data(amplitudes_, psds_, self.frequency_axis)
             #print(tsta, tend, tend+(kernel_shift-kernel_size)*self.WINLEN_SECONDS)
+            self.logger.info("Setting time for output:")
             self.set_time(tsta, tend+(kernel_shift-kernel_size)*self.WINLEN_SECONDS)
             self.winlen_seconds = kernel_shift*self.WINLEN_SECONDS
             self._check_shape_vs_time()
@@ -657,6 +670,8 @@ class Interpolator(Analyzer):
             # self.to_file(outdir)
 
             self.logger.debug("\n")
+
+        self.logger.info("Interpolation finished.")
 
        
 

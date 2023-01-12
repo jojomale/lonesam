@@ -117,6 +117,9 @@ size in the ProcessedData. Turns out though that this makes the handling of the 
 it impossible to recompute a single file because the start/end date depends on the
 previous file and thus from the very first startdate in the sequence.
 Life would be much easier if we only allow window sizes that divide 24h without remainder.
+....
+
+- Add note that window sizes are restricted to values that make integer quotients with days.
 
 
 # Misc

@@ -627,7 +627,7 @@ class BaseProcessedData():
         # self.proclen_seconds = proclen_seconds
         
         self.set_time(startdate, enddate)
-        self.logger.debug("Initial range: {} - {}".format(self.startdate, self.enddate))
+        #self.logger.debug("Initial range: {} - {}".format(self.startdate, self.enddate))
 
 
     def get_nslc(self):
@@ -642,6 +642,7 @@ class BaseProcessedData():
         """
         Read properties and data from HDF5 file.
         """
+        self.logger.info("Reading file {}".format(fname))
         with h5py.File(fname, 'r') as fin:
             self.amplitude_frequencies = fin.attrs['amplitude_frequencies']
             self.winlen_seconds = fin.attrs['winlen_seconds']
@@ -729,6 +730,7 @@ class BaseProcessedData():
                         self.winlen_seconds)
        
         i, j = int(i), int(j)
+        self.logger.debug("Params of data inserted to file:")
         self.logger.debug("starttime: %s" % self.startdate)
         self.logger.debug("endtime: %s" % self.enddate)
         self.logger.debug("Amplitude matrix shape: %s" % 
@@ -985,6 +987,7 @@ class BaseProcessedData():
         #print(self)
         #print()
         #print(new)
+        self.logger.debug("Extending data")
         tmin = min(self.startdate, new.startdate)
         tmax = max(self.enddate, new.enddate)
         #days = timedelta(seconds=tmax-tmin).days+1
@@ -1298,6 +1301,9 @@ class ProcessedDataFileManager():
         self.fileunit = fileunit
         if processeddata:
             self.set_data(processeddata)
+        self.logger.info(
+            "Processed data stored per {} in {} as {}".format(
+             self.fileunit, self.outdir, self.fname_fmt))
         
 
     @property
