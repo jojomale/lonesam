@@ -321,7 +321,6 @@ def get_overlapping_frames(x, framesize, incsize):
         [4 4 4 5 5]]
     """
     nf = (x.size-framesize) // incsize +1
-    
     startidx_of_frame = incsize * np.arange(nf)
     frames = x[np.expand_dims(startidx_of_frame, 1) + 
           np.expand_dims(np.arange(framesize), 0)]

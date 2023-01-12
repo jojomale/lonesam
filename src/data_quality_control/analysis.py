@@ -568,13 +568,13 @@ class Interpolator(Analyzer):
         X = util.get_overlapping_frames(x, 
                                        kernel_size, kernel_shift)
         
-        #print(x.size, X.shape)
+        print(x.size, X.shape)
         self._check_framed_shape(x, X, kernel_shift, "amplitude")
         amplitudes_ = np.nanmedian(X, axis=1)
 
         x = self.psds[:,0]
         X = util.get_overlapping_frames(x, kernel_size, kernel_shift)
-        #print(x.size, X.shape)
+        print(x.size, X.shape)
         self._check_framed_shape(x, X, kernel_shift, "psd")
         PSD_ = np.array([np.nanmedian(
                 util.get_overlapping_frames(x, kernel_size, kernel_shift),axis=1) 
@@ -595,17 +595,14 @@ class Interpolator(Analyzer):
             _tend = _tend + 24*3600
             if not new_tsta:
                 new_tsta = _tsta
-                #_tend = _tend + 24*3600
-            
-            N = int((_tend-new_tsta) / self.WINLEN_SECONDS) 
-            n_kernels, n_left = np.divmod(N, kernel_shift)
-            new_tend = _tend + (kernel_size-n_left)*self.WINLEN_SECONDS
+                
+            new_tend = _tend + (kernel_size-kernel_shift)*self.WINLEN_SECONDS
             self.logger.debug("Times adjusted to kernel: {} - {}".format(
                 new_tsta, new_tend))
             
             yield new_tsta, new_tend
             
-            new_tsta = new_tend - kernel_size*self.WINLEN_SECONDS 
+            new_tsta = new_tend + (kernel_shift-kernel_size)*self.WINLEN_SECONDS 
             
       
     def _check_kernelshiftsize(self, kernel_shift):
