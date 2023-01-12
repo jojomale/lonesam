@@ -301,24 +301,25 @@ def get_overlapping_frames(x, framesize, incsize):
 
     >>>> f = util.get_overlapping_frames(x, 3, 3)
     >>>> print(f.shape)
-        (5, 3)
+    (5, 3)
     >>>> print(f)
-        [[1 1 1]
-        [2 2 2]
-        [3 3 3]
-        [4 4 4]
-        [5 5 5]]
+    [[1 1 1]
+    [2 2 2]
+    [3 3 3]
+    [4 4 4]
+    [5 5 5]]
 
     Overlapping frames:
 
     >>>> f = util.get_overlapping_frames(x, 5, 3)
     >>>> print(f.shape)
-        (4, 5)
+    (4, 5)
     >>>> print(f)
-        [[1 1 1 2 2]
-        [2 2 2 3 3]
-        [3 3 3 4 4]
-        [4 4 4 5 5]]
+    [[1 1 1 2 2]
+    [2 2 2 3 3]
+    [3 3 3 4 4]
+    [4 4 4 5 5]]
+
     """
     nf = (x.size-framesize) // incsize +1
     startidx_of_frame = incsize * np.arange(nf)

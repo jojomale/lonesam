@@ -119,7 +119,8 @@ previous file and thus from the very first startdate in the sequence.
 Life would be much easier if we only allow window sizes that divide 24h without remainder.
 ....
 
-- Add note that window sizes are restricted to values that make integer quotients with days.
+- DOC: Add note that window sizes are restricted to values that make integer quotients with days.
+- Interpolator: add kernelsize/shift as attributes?
 
 
 # Misc

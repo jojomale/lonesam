@@ -74,6 +74,10 @@ html_theme_options = {
     'titles_only': False
 }
 
+
+# Napoleon options
+napoleon_include_private_with_doc = True
+
 # html_js_files = ['script.js',
 #                  'https://cdn.plot.ly/plotly-latest.min.js']
 

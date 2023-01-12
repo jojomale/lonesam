@@ -12,7 +12,7 @@ The processing workflow is managed by the
 more customized classes. E.g. the ``sds_db.SDSProcessor``
 is taylored to using the sds-client of obspy.
 """
-
+from functools import wraps
 from datetime import timedelta
 import time
 
@@ -60,6 +60,7 @@ default_processing_params = dict(
 
 
 def decorator_assert_integer_quotient_of_wins_per_fileunit(func):
+    @wraps(func)  # Makes sphinx find decorated methods
     def wrapper(aclass, *args, **kwargs):
         func(aclass, *args, **kwargs)       
         try:
@@ -602,6 +603,28 @@ class BaseProcessedData():
         computed
     proclen_seconds : int [None]
         length of data in seconds that were processed at once
+
+
+    Attributes
+    --------------
+    amplitudes : :py:class:`np.ndarray` (1D)
+        timeseries of averaged amplitude values
+    psds : :py:class:`np.ndarray` (2D)
+        Timeseries of power spectral densities. 
+        Shape is (N_times, N_frequencies).
+    frequency_axis : :py:class:`np.ndarray` (1D)
+        frequencies corresponding to :py:attr:`psds`
+    stationcode : :py:class:`str`
+        code of seismic station in format 
+        {network}.{station}.{location}.{channel}
+    amplitude_frequencies ::py:class:`tuple` of 2 :py:class:`float`  
+        Min and max frequencies at which seismic data
+        was filtered to calculate the average amplitude.
+    winlen_seconds : :py:class:`int`
+        Window size in seconds over which psds/amplitudes
+        were computed.
+    
+
     """
     def __init__(self,startdate=None, enddate=None,
                 stationcode="....", 
@@ -621,6 +644,27 @@ class BaseProcessedData():
         
         self.set_time(startdate, enddate)
         
+    @property
+    def N_windows(self):
+        """
+        :py:class:`int` : number of expected samples based on
+                            start & end date.
+        """
+        if self.startdate is not None and self.enddate is not None:
+            return int((self.enddate-self.startdate) // 
+                            self.winlen_seconds)
+        else:
+            return None
+     
+
+    @property
+    def duration(self):
+        """
+        :py:class:`int, float` : Total duration in seconds 
+        from start to end time.
+        """
+        return self.enddate-self.startdate
+
 
     def get_nslc(self):
         """
@@ -633,6 +677,11 @@ class BaseProcessedData():
     def from_file(self, fname):
         """
         Read properties and data from HDF5 file.
+
+        Parameters
+        ------------
+        fname : :py:class:`str`
+            Name of an hdf5-file.
         """
         self.logger.info("Reading file {}".format(fname))
         with h5py.File(fname, 'r') as fin:
@@ -653,6 +702,12 @@ class BaseProcessedData():
 
         Filename is created from stationcode, startdate
         and enddate.
+
+        Parameters
+        -----------
+        outdir : :py:class:`str` [``'.'``]
+            Directory in which the file is stored.
+            Default is working directory.
         """
         fname = "{}_{}_{}.hdf5".format(
                 self.stationcode, self.startdate.date, 
@@ -687,7 +742,7 @@ class BaseProcessedData():
 
         Parameters
         -------------
-        fout : h5py.File
+        fout : :py:class:`h5py.File`
             file-object, ready for write in which to insert 
             the data
         
@@ -754,6 +809,7 @@ class BaseProcessedData():
         freqs : ndarray, 1d
             frequency axis corresponding to psds of shape
             ``(n_frequencies,)``
+
         """
         
         # make sure shapes of data are consistent
@@ -776,9 +832,7 @@ class BaseProcessedData():
         self.psds = psds
         self.frequency_axis = freqs
 
-
-        
-
+  
     def has_data(self):
         """
         Check if amplitude and/or spectral data are available
@@ -791,7 +845,7 @@ class BaseProcessedData():
     
     def trim_nan(self):
         """
-        Remove entire nan-rows (days) at both ends and 
+        Remove entire nan-rows at both ends and 
         adjust start/enddate.
         """
         # If no data, we can exit right away
@@ -837,9 +891,10 @@ class BaseProcessedData():
         self._check_shape_vs_time()
                 
 
-
-    
     def get_samples_to_midnight(self):
+        """
+        
+        """
         seconds_per_ydim = 24*3600
         #samples_per_ydim = int(seconds_per_ydim / self.winlen_seconds)
 
@@ -856,9 +911,16 @@ class BaseProcessedData():
         return ns_front, ns_back, new_startdate, new_enddate
 
 
-
-
     def reshape_amps_to_days(self):
+        """
+        Reshape :py:attr:`amplitudes` from 1d timeseries
+        to 2d array. First dim is number of windows per 24h,
+        Second dim is number of days between start/end date.
+        Fills leading/trailing windows with Nans if necessary
+        to reach full days. 
+        
+        Used by :py:meth:`.plot_amplitudes`
+        """
         ns_front, ns_back, new_startdate, new_enddate = self.get_samples_to_midnight()
         self.logger.debug(
             "Extening front by {:g}, back by {:g} samples.".format(
@@ -876,13 +938,13 @@ class BaseProcessedData():
         return A
 
     
-    
     def fill_days(self):
         """
         Extend time range to midnight of start/end day by
         filling time series with Nans.
 
-        Startdate YYYY-MM-DDThh:mm:ss is set to YYYY-MM-DDT00:00:00,
+        Startdate YYYY-MM-DDThh:mm:ss is set to 
+        YYYY-MM-DDT00:00:00,
         enddate YYYY-MM-DDThh:mm:ss is set to 
         YYYY-MM-DDT00:00:00 + 1day.
 
@@ -912,7 +974,7 @@ class BaseProcessedData():
         Read new result data from HDF5-file and add to
         existing.
 
-        Combines ``.from_file()`` and ``.extend()``
+        Combines :py:meth:`.from_file` and :py:meth:`.extend`
 
         Parameters
         --------------
@@ -933,19 +995,17 @@ class BaseProcessedData():
         self += BaseProcessedData().from_file(file)
         
         
-    @property
-    def N_windows(self):
-        """
-        Sets number of expected samples from start & end date property.
-        """
-        if self.startdate is not None and self.enddate is not None:
-            return int((self.enddate-self.startdate) // 
-                            self.winlen_seconds)
-        else:
-            return None
-        
-
     def set_time(self, starttime, endtime):
+        """
+        Set :py:attr:`.startdate` and :py:attr:`.enddate`.
+
+        Parameters
+        ------------
+        starttime : :py:class:`obspy.core.UTCDateTime`
+            new starttime
+        endtime : :py:class:`obspy.core.UTCDateTime`
+            new endtime
+        """
         if starttime is not None:
             starttime = UTC(starttime)
         if endtime is not None:
@@ -954,16 +1014,7 @@ class BaseProcessedData():
         self.enddate = endtime
         self.logger.info("Start/end time set to: {} - {}".format(
             self.startdate, self.enddate))
-        
-    def __iadd__(self, new):
-        """
-        Use += notation to add more data
-        """
-        if not isinstance(new, BaseProcessedData):
-            raise TypeError("You can only add another BaseProcessedData")
-        self.extend(new)
-        return self
-        
+    
 
     def extend(self, new):
         """
@@ -972,6 +1023,12 @@ class BaseProcessedData():
         Adjusts start/endtimes, removes leading/trailing
         Nans. Should only work if processing parameters,
         frequency axis are compatible.
+
+        Parameters
+        --------------
+        new : :py:class:`BaseProcessedData`
+            Add another instance to this one.
+
         """
         # Get total number of days to get new array sizes
         self.logger.debug("Inserting new in existing data")
@@ -1014,14 +1071,29 @@ class BaseProcessedData():
 
     def _check_sanity(self, new):
         """
-        Check consistency of new and existing data.
+        Check consistency between new and existing data.
 
-        Runs:
-        - ``_chech_shapes``
-        - ``_check_frequencies``
-        - ``_check_codes``
+        Parameters
+        ------------
+        new : :py:class:`.BaseProcessedData`
+            another instance of this class
 
-        Throws IOError is any one of them fails.
+
+        Runs
+
+        - :py:meth:`._check_frequencies`
+        - :py:meth:`._check_codes`
+        - :py:meth:`._check_shape_vs_time` on 
+          ``self`` and ``new``
+
+        Raises
+        --------
+        IOError
+            if one of the first 2 fails
+        AssertionError
+            see :py:meth:`._check_shape_vs_time`
+        RuntimeWarning
+            see :py:meth:`._check_shape_vs_time`
         """
         # Any of these methods raises IOError
         # if inconsistencies are found
@@ -1034,10 +1106,27 @@ class BaseProcessedData():
     
 
     def _check_shape_vs_time(self):
-        timespan = self.enddate - self.startdate
-        n_windows = timespan / self.winlen_seconds
-        if timespan % n_windows != 0:
-            raise RuntimeWarning("N_windows is {:g}".format(n_windows))
+        """
+        Check consistency of data shapes and times.
+
+        Raises
+        -----------
+        RuntimeWarning
+            if number of time windows is inconsistent
+            with :py:attr:`.duration` and 
+            :py:attr:`.winlen_seconds`
+        AssertionError
+            if number of time windows in 
+            :py:attr:`.amplitudes` and :py:attr:`.psds`
+            are different
+
+        """
+        #timespan = self.enddate - self.startdate
+        # Not sure if this first part makes sense.
+        n_windows = self.duration / self.winlen_seconds
+        if self.duration % n_windows != 0:
+            raise RuntimeWarning(
+                "N_windows is {:g}".format(n_windows))
         
         if self.has_data():
             assert self.psds.shape[0] == self.amplitudes.shape[0], \
@@ -1049,10 +1138,12 @@ class BaseProcessedData():
 
     def _check_shapes(self, new):
         """
+        **Deprecated!**
+
         Checks if number of processing windows
         and frequency axis of psd and amplitude are
         compatible.
-        Throws IOError if not.
+        Throws :py:exc:`IOError` if not.
         """
         raise DeprecationWarning("_check_shapes is obsolete. Remove!")
         amps_shp = self.amplitudes.shape
@@ -1071,8 +1162,18 @@ class BaseProcessedData():
     
     def _check_frequencies(self, new):
         """
-        Check if frequency axis are similar using np.isclose().
-        Throws IOError if not.
+        Check if frequency axis are similar using ``np.isclose()``.
+
+        Parameters
+        ------------
+        new : :py:class:`.BaseProcessedData`
+            another instance of this class
+
+        Raises
+        --------
+        IOError
+            if different.
+
         """
         if not np.all(np.isclose(self.frequency_axis, new.frequency_axis)):
             self.logger.error("Frequency axis are different!")
@@ -1084,7 +1185,19 @@ class BaseProcessedData():
     def _check_codes(self, new):
         """
         Check if station codes are identical. 
-        Throws IOError if not.
+
+        Parameters
+        ------------
+        new : :py:class:`.BaseProcessedData`
+            another instance of this class
+
+
+        Raises
+        --------
+        IOError
+            If codes are different.
+
+
         """
         if self.stationcode != new.stationcode:
             #print("old:", self.stationcode)
@@ -1102,7 +1215,12 @@ class BaseProcessedData():
         """
         Get x and y axis for plotting amplitudes.
 
-        x axis are dates, y axis are hours of day.
+        Returns
+        ----------
+        dateax
+            x axis are dates
+        timeax
+            y axis are hours of day.
         """
         seconds_per_ydim = 24*3600
         samples_per_ydim = int(seconds_per_ydim / self.winlen_seconds)
@@ -1136,13 +1254,13 @@ class BaseProcessedData():
 
         Parameters
         ---------------
-        ax : matplotlib.axes
+        ax : :py:class:`matplotlib.Axes`
             Axes to use. If not given, new figure is 
             created.
 
         Returns
         ----------
-        ax : matplotlib.axes
+        ax : :py:class:`matplotlib.Axes`
             Axes containing the plot.
         
         """
@@ -1253,6 +1371,16 @@ class BaseProcessedData():
         ax.set_title("Power spectral densities")
         return ax
 
+        
+    def __iadd__(self, new):
+        """
+        Use += notation to add more data
+        """
+        if not isinstance(new, BaseProcessedData):
+            raise TypeError("You can only add another BaseProcessedData")
+        self.extend(new)
+        return self
+        
     
     def __repr__(self):
         """

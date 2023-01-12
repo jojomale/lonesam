@@ -30,35 +30,64 @@ wildcards = ["?", "*"]
 
 
 class Analyzer(base.BaseProcessedData):
+    """
+    Handler to view and manage processed amplitudes and PSDs.
+
+    Loads data for desired time range and provides plotting
+    routines.
+    
+    Parameters
+    ------------------ 
+    datadir : :py:class:`pathlib.Path`
+        directory of HDF5-files
+    nslc_code : str
+        code of format {network}.{station}.{location}.{channel}
+    fileunit : {"year", "month", "day", "hour"}
+        flag indicating the expected time range per file. 
+        Determines the search pattern for files.
+
+
+    """
+
     def __init__(self, 
                  datadir, nslc_code, fileunit="year",
                 ):
         super().__init__(stationcode=nslc_code)
-        self.datadir = datadir
-        self.fileunit  = fileunit
-        self.iter_time = util.TIME_ITERATORS[self.fileunit]
-        
-        # Get fmtstr of data files
-        fmtstr_base, sep, fmtstr_time = util.FNAME_FMTS[self.fileunit].rpartition("_")
-        self.fmtstr = (fmtstr_base.format(
-                        outdir=self.datadir, **self.nslc_as_dict()) + 
-                        sep + fmtstr_time)
         self.logger = logging.getLogger(module_logger.name+
                             '.'+"Analyzer")
         self.logger.setLevel(logging.DEBUG)
 
+        self.datadir = datadir
+        self.fileunit  = fileunit
+        self.iter_time = util.TIME_ITERATORS[self.fileunit]
+        
+
+    @property        
+    def fmtstr(self):
+        """
+        Name pattern of hdf5-files.
+        """
+        fmtstr_base, sep, fmtstr_time = util.FNAME_FMTS[
+                            self.fileunit].rpartition("_")
+        return (fmtstr_base.format(
+                outdir=self.datadir, **self.nslc_as_dict()) + 
+                sep + fmtstr_time)
+
 
     def nslc_as_dict(self):
+        """
+        Return station code as dictionary.
+        """
         d = {k: v for k, v in zip(["network", "station", "location", "channel"], 
                                   self.stationcode.split("."))}
         return d
 
+
     def get_available_datafiles(self):
         """
         Return list with all available HDF5-filenames for 
-        self.stationcode in self.datadir
+        :py:attr:`stationcode` in :py:attr:`datadir`
         """
-        #return glob(self.fmtstr.rpartition("_")[0] + "*.hdf5")
         self.logger.info("Looking for pattern " + str(Path(self.datadir).joinpath(
                         self.stationcode+"_"+util.FNAME_WILDCARD[self.fileunit]+".hdf5")))
         return [str(f) for f in 
@@ -84,7 +113,7 @@ class Analyzer(base.BaseProcessedData):
         return startdate, enddate
 
 
-    def _get_filenames(self, starttime, endtime):
+    def get_filenames(self, starttime, endtime):
         """
         Get filenames within time range.
         """
@@ -167,11 +196,12 @@ class Analyzer(base.BaseProcessedData):
         etime = starttimes[-1]
         stime = starttimes[0]
             
-        self.files = self._get_filenames(stime, etime)
+        self.files = self.get_filenames(stime, etime)
         self.logger.debug("Expecting files {}".format(self.files))
         for fname in self.files:
             self.extend_from_file(fname)
 
+        # Does this really go here?
         self._check_if_requested_times_are_available(stime, etime)
         
         self._check_shape_vs_time()
@@ -185,6 +215,18 @@ class Analyzer(base.BaseProcessedData):
                 fill_value=None):
         """
         Remove data outside of start/end time.
+
+        Parameters
+        ----------------
+        starttime : :py:class:`obspy.core.UTCDateTime`
+            If `None` set starttime is used
+        endtime : :py:class:`obspy.core.UTCDateTime`
+            If `None` set endtime is used
+        fill_value : float, int [None]
+            If given, fills arrays to requested start/endtime 
+            if available data starts after starttime or ends
+            before endtime. If `None`, resulting time range
+            may be shorter than requested.
         """
         self.logger.debug("Trimming data if necessary")
 
@@ -230,6 +272,11 @@ class Analyzer(base.BaseProcessedData):
 
 
     def _reset(self):
+        """
+        Set attributes `amplitude_frequencies`, `winlen_seconds`,
+        `startdate`, `enddate`, `amplitudes`, `psds`, 
+        `frequency_axis` to `None`.
+        """
         for attr in ["amplitude_frequencies",
                     "winlen_seconds",
                     "startdate", "enddate", 
@@ -242,7 +289,11 @@ class Analyzer(base.BaseProcessedData):
 
 
     def _check_if_requested_times_are_available(self, stime, etime):
-        ## Reduce start/end time to those in self if out of available range
+        """
+        Reduce start/end time to those in self if out of available range.
+        Issue errors
+        """
+        ## 
         if stime > self.enddate:
             self._reset()
             msg = ("Requested time range starts after data is available." + 
@@ -270,6 +321,24 @@ class Analyzer(base.BaseProcessedData):
 
 
     def filter_psds_for_times(self, timelist):
+        """
+        Select and set PSDs only for given times.
+
+        Finds indices of times in list, extracts 
+        respective PSDs and replaces :py:attr:`psds`.
+        
+        Parameters
+        ------------
+        timelist : list of UTCDateTimes
+        
+
+        Warning
+        -----------
+        Overrides existing psd array! Cannot be used multiple
+        times without reloading the data.
+
+        """
+
         self.logger.debug("len(input timelist): {:d}".format(
             len(timelist)))
         timelist = [t for t in timelist if 
@@ -345,8 +414,6 @@ class Analyzer(base.BaseProcessedData):
         if not "shading" in kwargs:
             kwargs["shading"] = "auto"
         
-        
-   
         if ax is None:
             fig, ax = plt.subplots(1,1)
         else:
@@ -522,6 +589,23 @@ class Analyzer(base.BaseProcessedData):
 
 
 class Interpolator(Analyzer):
+    """
+    Manage interpolation/data reduction of processed amplitudes 
+    and PSDs. 
+    
+    Grandparent is :py:class:`BaseProcessedData`.
+
+    Parameters
+    ------------------
+    datadir : :py:class:`pathlib.Path`
+        directory of HDF5-files
+    nslc_code : str
+        code of format {network}.{station}.{location}.{channel}
+    fileunit : {"year", "month", "day", "hour"}
+        flag indicating the expected time range per file. 
+        Determines the search pattern for files.
+    """
+
     def __init__(self, datadir, nslc_code,
                 fileunit="year"):
         super().__init__(datadir, nslc_code, fileunit)
@@ -529,9 +613,17 @@ class Interpolator(Analyzer):
                             '.'+"Interpolator")
         self.logger.setLevel(logging.DEBUG)
     
+
     def _get_WINLEN_SECONDS(self, TSTA, TEND):
         """
         Read first file in list to get window size in seconds.
+
+        Parameters
+        -------------
+        TSTA : UTCDateTime
+            beginning of time range in which we look for data.
+        TEND : UTCDateTime
+            end of time range in which we look for data.
         """
         self.logger.debug("\n\nLooking for window size")
         for tsta, tend in self.iter_time(TSTA, TEND):
@@ -543,6 +635,12 @@ class Interpolator(Analyzer):
 
 
     def _set_check_WINLEN_SECONDS(self):
+        """
+        Sets :py:attr:`WINLEN_SECONDS` if not set,
+        otherwise raises error if different from 
+        py:attr:`winlen_seconds`. 
+        Used to monitor if window size changes between files.
+        """
         if not hasattr(self, "WINLEN_SECONDS"):
             self.logger.info("Expecting window size = {:g}s".format(
                 self.winlen_seconds))
@@ -554,6 +652,21 @@ class Interpolator(Analyzer):
 
             
     def _check_framed_shape(self, x, X, kernel_shift, label=""):
+        """
+        Used in :py:meth:`._interpolate` to check if all data
+        went into frames. 
+
+        Parameters
+        ------------
+        x : ndarray (1D)
+            data as time series
+        X : ndarray (2D)
+            data as (overlapping) frames
+        kernel_shift : int
+            distance between two frames in samples
+        label : str
+            name of x for more meaningful error msg.
+        """
         nk, ks = X.shape
         ns = (nk-1)*kernel_shift+ks
         assert ns == x.size, \
@@ -561,6 +674,10 @@ class Interpolator(Analyzer):
     
     
     def _interpolate(self, kernel_size, kernel_shift):
+        """
+        Transform timeseries data into frames and apply
+        median operation.
+        """
         self.logger.debug("Running self._interpolate()")
         x = self.amplitudes
         X = util.get_overlapping_frames(x, 
@@ -575,14 +692,15 @@ class Interpolator(Analyzer):
         #print(x.size, X.shape)
         self._check_framed_shape(x, X, kernel_shift, "psd")
         PSD_ = np.array([np.nanmedian(
-                util.get_overlapping_frames(x, kernel_size, kernel_shift),axis=1) 
+                util.get_overlapping_frames(
+                    x, kernel_size, kernel_shift),axis=1) 
                          for x in self.psds.T]).T
         
         return amplitudes_, PSD_
     
     
     def iter_times_kernel(self, tsta, tend, kernel_size, kernel_shift):
-        """
+        """        
         Note
         -------
         yielded endtime is starttime of last sample plus window size.
