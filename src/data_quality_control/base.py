@@ -59,6 +59,22 @@ default_processing_params = dict(
 )
 
 
+def decorator_assert_integer_quotient_of_wins_per_fileunit(func):
+    def wrapper(aclass, *args, **kwargs):
+        func(aclass, *args, **kwargs)       
+        try:
+            return util.assert_integer_quotient_of_wins_per_fileunit(
+                aclass.winlen_seconds, aclass.fileunit)
+        except AttributeError:
+            aclass.logger.debug("Class {} ".format(aclass.__class__) + 
+                    "has no attributes winlen_seconds or fileunit")
+        except UserWarning:
+            aclass.logger.warning("Illegal `winlen_seconds`! " + 
+                "Must yield integer quotient when dividing total duration "+
+                "in file, i.e. effectively 1 hour or 24 hours.")
+    return wrapper
+
+
 
 class GenericProcessor():
     """
@@ -126,7 +142,7 @@ class GenericProcessor():
     ``station, network, location, channel``
     
     """
-
+    @decorator_assert_integer_quotient_of_wins_per_fileunit
     def __init__(self, nslc_code, 
                 dataclient, invclient,
                 outdir='.',  preprocessing=None,
@@ -163,6 +179,12 @@ class GenericProcessor():
         self.fname_fmt = util.FNAME_FMTS[self.fileunit]
 
 
+
+    @property
+    def winlen_seconds(self):
+        return self.proc_params.winlen_seconds
+
+    
     def __repr__(self) -> str:
         """
         Print attributes and their values
@@ -282,15 +304,7 @@ class GenericProcessor():
                 self.logger.debug("output time range: {} - {}".format(output.startdate, output.enddate))
                 
                 ofilemanager.set_data(output)
-                fout = ofilemanager.get_ofile(force_new_file)
-            
-                with fout:
-                    try:
-                        output.insert_in_file(fout)
-                    except Exception as e:
-                        fout.close()
-                        raise e
-
+                ofilemanager.write_data(force_new_file)
 
         walltime = timedelta(seconds=time.time()-T0)
         self.logger.info("Finished. Took %s h" % walltime)
@@ -588,7 +602,7 @@ class BaseProcessedData():
     amplitude_frequencies : 2-tuple [(None,None)]
         min, max frequency between which data was filtered
         for amplitude extraction
-    seconds_per_window : int [None]
+    winlen_seconds : int [None]
         seconds per frame over which amplitude and psd were
         computed
     proclen_seconds : int [None]
@@ -597,7 +611,7 @@ class BaseProcessedData():
     def __init__(self,startdate=None, enddate=None,
                 stationcode="....", 
                 amplitude_frequencies=(None,None),
-                seconds_per_window=None, 
+                winlen_seconds=None, 
                 #proclen_seconds=None
                 ):
         self.logger = logging.getLogger(module_logger.name+
@@ -609,7 +623,7 @@ class BaseProcessedData():
         self.frequency_axis = None
         self.stationcode = stationcode
         self.amplitude_frequencies = amplitude_frequencies
-        self.seconds_per_window = seconds_per_window
+        self.winlen_seconds = winlen_seconds
         # self.proclen_seconds = proclen_seconds
         
         self.set_time(startdate, enddate)
@@ -630,7 +644,7 @@ class BaseProcessedData():
         """
         with h5py.File(fname, 'r') as fin:
             self.amplitude_frequencies = fin.attrs['amplitude_frequencies']
-            self.seconds_per_window = fin.attrs['seconds_per_window']
+            self.winlen_seconds = fin.attrs['winlen_seconds']
             self.startdate = UTC(*fin.attrs['starttime'])
             self.enddate = UTC(*fin.attrs['endtime'])
             self.stationcode = fin.attrs['stationcode'].decode()
@@ -666,7 +680,7 @@ class BaseProcessedData():
             util._create_hdf5_attribs(fout, self.stationcode, 
                                 self.startdate, self.enddate,
                                 self.amplitude_frequencies,
-                                self.seconds_per_window,
+                                self.winlen_seconds,
                                 #self.proclen_seconds
                                 )
           
@@ -710,9 +724,9 @@ class BaseProcessedData():
             raise ValueError(msg)
 
         i = ((self.startdate - fstime) / 
-                    self.seconds_per_window)
+                    self.winlen_seconds)
         j = ((self.enddate - fstime) / 
-                        self.seconds_per_window)
+                        self.winlen_seconds)
        
         i, j = int(i), int(j)
         self.logger.debug("starttime: %s" % self.startdate)
@@ -819,14 +833,14 @@ class BaseProcessedData():
             self.psds = None
         # if yes, adjust start/enddate
         else:
-            self.set_time(self.startdate + n*self.seconds_per_window,
-                           self.enddate - m*self.seconds_per_window )
+            self.set_time(self.startdate + n*self.winlen_seconds,
+                           self.enddate - m*self.winlen_seconds )
 
         self.logger.debug(
             "Removed {} samples from beginning and {} samples from end".format(n, m))
         self.logger.debug("Shapes after trim_nan: {}, {}".format(
                 self.amplitudes.shape, self.psds.shape))
-        #print((self.enddate - self.startdate) / self.seconds_per_window,  self.amplitudes.size)
+        #print((self.enddate - self.startdate) / self.winlen_seconds,  self.amplitudes.size)
         
         self._check_shape_vs_time()
                 
@@ -835,7 +849,7 @@ class BaseProcessedData():
     
     def get_samples_to_midnight(self):
         seconds_per_ydim = 24*3600
-        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        samples_per_ydim = int(seconds_per_ydim / self.winlen_seconds)
         #print(samples_per_ydim)
 
         new_startdate = UTC(self.startdate.date)
@@ -845,9 +859,9 @@ class BaseProcessedData():
         assert new_enddate >= self.enddate, "new enddate < old"
 
         ns_front = int((self.startdate - new_startdate) / 
-                        self.seconds_per_window)
+                        self.winlen_seconds)
         ns_back = int((new_enddate - self.enddate) / 
-                        self.seconds_per_window)
+                        self.winlen_seconds)
         return ns_front, ns_back, new_startdate, new_enddate
 
 
@@ -865,7 +879,7 @@ class BaseProcessedData():
         A = np.append(A, np.ones(ns_back)*np.nan)
 
         seconds_per_ydim = 24*3600
-        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        samples_per_ydim = int(seconds_per_ydim / self.winlen_seconds)
     
         A = A.reshape(-1, samples_per_ydim).T
         return A
@@ -934,7 +948,7 @@ class BaseProcessedData():
         """
         if self.startdate is not None and self.enddate is not None:
             return int((self.enddate-self.startdate) // 
-                            self.seconds_per_window)
+                            self.winlen_seconds)
         else:
             return None
         
@@ -976,7 +990,7 @@ class BaseProcessedData():
         #days = timedelta(seconds=tmax-tmin).days+1
 
         # Replace proclen with winlen?
-        nrows = int((tmax-tmin) / self.seconds_per_window)
+        nrows = int((tmax-tmin) / self.winlen_seconds)
         
         # If shapes, processing parameters, frequency axis or 
         # stationcodesare inconsistent, we get an error here
@@ -995,7 +1009,7 @@ class BaseProcessedData():
         # overwrites existing data if they overlap
         for d in [self, new]:
             #i = timedelta(seconds=d.startdate-tmin).seconds
-            i = int((d.startdate - tmin) / d.seconds_per_window )
+            i = int((d.startdate - tmin) / d.winlen_seconds )
             n = len(d.amplitudes)
             
             new_amps[i:i+n] = d.amplitudes
@@ -1033,7 +1047,7 @@ class BaseProcessedData():
 
     def _check_shape_vs_time(self):
         timespan = self.enddate - self.startdate
-        n_windows = timespan / self.seconds_per_window
+        n_windows = timespan / self.winlen_seconds
         if timespan % n_windows != 0:
             raise RuntimeWarning("N_windows is {:g}".format(n_windows))
         
@@ -1103,7 +1117,7 @@ class BaseProcessedData():
         x axis are dates, y axis are hours of day.
         """
         seconds_per_ydim = 24*3600
-        samples_per_ydim = int(seconds_per_ydim / self.seconds_per_window)
+        samples_per_ydim = int(seconds_per_ydim / self.winlen_seconds)
         dtflag, dtinc = util.choose_datetime_inc(seconds_per_ydim)
         self.logger.debug(
             "Time incr & format for time / y: {:g} {}".format(
@@ -1117,7 +1131,7 @@ class BaseProcessedData():
                             dtinc,
                         dtype='datetime64[{}]'.format(dtflag))
 
-        dtflag, dtinc = util.choose_datetime_inc(self.seconds_per_window)
+        dtflag, dtinc = util.choose_datetime_inc(self.winlen_seconds)
         
         self.logger.debug(
             "Time incr & format for dates / x: {:g} {}".format(
@@ -1173,9 +1187,9 @@ class BaseProcessedData():
 
 
     def _get_psd_datetimeax(self):
-        dtflag, dtinc = util.choose_datetime_inc(self.seconds_per_window)
+        dtflag, dtinc = util.choose_datetime_inc(self.winlen_seconds)
         tax = np.arange(self.startdate, 
-                        self.enddate+self.seconds_per_window,
+                        self.enddate+self.winlen_seconds,
                         dtinc,
                     dtype='datetime64[{}]'.format(dtflag))
         return tax
@@ -1183,12 +1197,12 @@ class BaseProcessedData():
 
 
     def _get_psd_datetime_labels(self, N_timeticks=8):
-        timeax_inc = (self.enddate+self.seconds_per_window -
+        timeax_inc = (self.enddate+self.winlen_seconds -
         self.startdate) / N_timeticks
         dtflag, dtinc = util.choose_datetime_inc(
                             timeax_inc)
         tax = np.arange(self.startdate, 
-                        self.enddate+self.seconds_per_window,
+                        self.enddate+self.winlen_seconds,
                         dtinc,
                     dtype='datetime64[{}]'.format(dtflag))
         return tax
@@ -1263,26 +1277,38 @@ class BaseProcessedData():
         d = "N windows: {:d}".format(self.N_windows)
         shp1 = "Amplitude shape = {}".format(self.amplitudes.shape)
         shp2 = "PSD shape = {}".format(self.psds.shape)
-        pr1 = "Seconds per window = {:g}".format(self.seconds_per_window)
+        pr1 = "Seconds per window = {:g}".format(self.winlen_seconds)
         pr2 = "Amplitude for {:g} - {:g} Hz".format(*self.amplitude_frequencies)
 
         return "\n".join([nsc, s,e,d,shp1,shp2, pr1, pr2])
 
 
+
+
 class ProcessedDataFileManager():
+    
     def __init__(self, outdir,  processeddata=None, fileunit="year") -> None:
-        self.data = processeddata
-        self.outdir = outdir
-        self.fileunit = fileunit
+        
         self.logger = logging.getLogger(module_logger.name+
         #                    "."+self.__name__)
                             '.'+"ProcessedDataFileManager")
         self.logger.setLevel(logging.DEBUG)
 
+        self.outdir = outdir
+        self.fileunit = fileunit
+        if processeddata:
+            self.set_data(processeddata)
+        
+
+    @property
+    def winlen_seconds(self):
+        return self.data.winlen_seconds
+
 
     @property
     def fname_fmt(self):
         return util.FNAME_FMTS[self.fileunit]
+
 
     @property
     def ofilename(self):
@@ -1296,7 +1322,7 @@ class ProcessedDataFileManager():
                 )
         return ofilename
 
-
+    @decorator_assert_integer_quotient_of_wins_per_fileunit
     def set_data(self, processeddata):
         self.data = processeddata
 
@@ -1311,23 +1337,16 @@ class ProcessedDataFileManager():
         return d
 
 
-    def create_ofile(self):
+    def create_ofile(self, force_fileunit=True):
         """
         Create output file.
         """
-        # ofilename = self.fname_fmt.format(
-        #                 outdir=self.outdir,
-        #         year=starttime.year, 
-        #         month=starttime.month, 
-        #         day=starttime.day,
-        #         hour=starttime.hour,
-        #         **self.nsc_as_dict()
-        #         )
-        
-        fstime, fetime = self.allocate_file_start_end() 
-        #n_proclen = int((fetime + self.proc_params.proclen_seconds - fstime) / 
-        #                self.proc_params.proclen_seconds)
-        n_windows = int((fetime - fstime) / self.data.seconds_per_window)
+
+        if force_fileunit:
+            fstime, fetime = self.allocate_file_start_end() 
+        else:
+            fstime, fetime = self.data.startdate, self.data.enddate
+        n_windows = int((fetime - fstime) / self.data.winlen_seconds)
 
         self.logger.info("Creating output file %s" % self.ofilename)
         self.logger.info("Starttime=%s, endtime=%s, n_windows=%s" %
@@ -1339,7 +1358,6 @@ class ProcessedDataFileManager():
         f.create_dataset("amplitudes", 
                 shape=(n_windows,), 
                             fillvalue=np.nan)
-        #nfreqs = self.proc_params.nperseg // 2 + 1
         nfreqs = self.data.frequency_axis.size
         f.create_dataset("psds", 
                         shape=(n_windows, nfreqs), 
@@ -1350,14 +1368,14 @@ class ProcessedDataFileManager():
         util._create_hdf5_attribs(f, self.data.stationcode,
                                 fstime, fetime,
                                 self.data.amplitude_frequencies,
-                                self.data.seconds_per_window,
+                                self.data.winlen_seconds,
                                 #self.proc_params.proclen_seconds
                                 )
     
         return f
 
     
-    def get_ofile(self, force_new_file=False):
+    def get_ofile(self, force_new_file=False, force_fileunit=True):
         """
         Open or create new output file for results from an
         ``NSCProcessor``
@@ -1377,16 +1395,8 @@ class ProcessedDataFileManager():
             open file handler
         """
         
-        # ofilename = self.fname_fmt.format(
-        #                 outdir=self.outdir,
-        #         year=starttime.year, 
-        #         month=starttime.month, 
-        #         day=starttime.day,
-        #         hour=starttime.hour,
-        #         **nscprocessor.nsc_as_dict())
-
         if force_new_file:
-            return self.create_ofile()
+            return self.create_ofile(force_fileunit)
 
         try:
             f = h5py.File(self.ofilename, "r+")
@@ -1426,5 +1436,19 @@ class ProcessedDataFileManager():
             stime = UTC(starttime.year, starttime.month, starttime.day,
                         starttime.hour, 0, 0)
             etime = stime + 3600
+
+        self.logger.debug("Allocated start/endtime: {} - {}".format(
+                stime, etime
+        ))
         return stime, etime
 
+
+    def write_data(self, force_new_file=False, force_fileunit=True):
+        fout = self.get_ofile(force_new_file, force_fileunit)
+            
+        with fout:
+            try:
+                self.data.insert_in_file(fout)
+            except Exception as e:
+                fout.close()
+                raise e

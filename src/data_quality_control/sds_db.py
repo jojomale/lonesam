@@ -67,21 +67,21 @@ class SDSProcessor(base.GenericProcessor):
         channels = set()
         years = np.arange(starttime.year, endtime.year+1)
         for y in years:
-            logger.debug("Looking for data in year %s" % str(y))
+            self.logger.debug("Looking for data in year %s" % str(y))
             for n in glob(os.path.join(self.client.sds_root, 
                                         str(y), self.network)):
                 nw = os.path.split(n)[-1]
                 networks.add(nw)
-                logger.debug("%s" % nw)
+                self.logger.debug("%s" % nw)
                 for s in glob(os.path.join(n, self.station)):
                     sn = os.path.split(s)[-1]
                     stations.add(sn)
-                    logger.debug("%s" % sn)
+                    self.logger.debug("%s" % sn)
                     for c in glob(os.path.join(s, self.channel)+
                                     '.{}'.format(self.client.sds_type)):
                         ch = os.path.split(c)[-1].split('.')[0]
                         channels.add(ch)
-                        logger.debug("%s" % ch)
+                        self.logger.debug("%s" % ch)
         self._networks = list(networks)
         self._stations = list(stations)
         self._channels = list(channels)

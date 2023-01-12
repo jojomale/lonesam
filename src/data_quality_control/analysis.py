@@ -124,6 +124,7 @@ class Analyzer(base.BaseProcessedData):
         return sorted(starttimes)
 
 
+    @base.decorator_assert_integer_quotient_of_wins_per_fileunit
     def get_data(self, starttimes, endtime=None):
         """
         Load amplitudes, psds and metadata from HDF5-files for
@@ -197,7 +198,7 @@ class Analyzer(base.BaseProcessedData):
             endtime = self.enddate
 
         nbeg = int((starttime - self.startdate) / 
-                self.seconds_per_window)
+                self.winlen_seconds)
         if nbeg >= 0:
             new_amps = self.amplitudes[nbeg:]
             new_psds = self.psds[nbeg:,:]
@@ -211,7 +212,7 @@ class Analyzer(base.BaseProcessedData):
             starttime = self.startdate
         
         nend = int((self.enddate - endtime) / 
-                self.seconds_per_window)
+                self.winlen_seconds)
         if nend >= 0:
             new_amps = new_amps[:-nend]
             new_psds = new_psds[:-nend,:]
@@ -234,7 +235,7 @@ class Analyzer(base.BaseProcessedData):
 
     def _reset(self):
         for attr in ["amplitude_frequencies",
-                    "seconds_per_window",
+                    "winlen_seconds",
                     "startdate", "enddate", 
                     "amplitudes", "psds", "frequency_axis", 
                     ]:
@@ -281,7 +282,7 @@ class Analyzer(base.BaseProcessedData):
         self.logger.debug("len(timelist) within available time: {:d}".format(
             len(timelist)))
         timeax = np.array([np.datetime64(t) for t in timelist])
-        time_idx = [int((t - self.startdate)/self.seconds_per_window )
+        time_idx = [int((t - self.startdate)/self.winlen_seconds )
                     for t in timelist]
         self.timeax_psd = timeax
         self.psds = self.psds[time_idx,:]
@@ -299,7 +300,7 @@ class Analyzer(base.BaseProcessedData):
             l1 = "I have data for {} - {}".format(self.startdate, self.enddate)
             shp1 = "Amplitude shape = {}".format(self.amplitudes.shape)
             shp2 = "PSD shape = {}".format(self.psds.shape)
-            pr1 = "Seconds per window = {:g}".format(self.seconds_per_window)
+            pr1 = "Seconds per window = {:g}".format(self.winlen_seconds)
             pr2 = "Amplitude for {:g} - {:g} Hz".format(
                 *self.amplitude_frequencies)
 
@@ -525,11 +526,12 @@ class Analyzer(base.BaseProcessedData):
 
 
 class Interpolator(Analyzer):
-    def __init__(self, datadir, nslc_code, fileunit="year"):
+    def __init__(self, datadir, nslc_code,
+                fileunit="year"):
         super().__init__(datadir, nslc_code, fileunit)
     
     
-    def _get_SECONDS_PER_WINDOW(self, TSTA, TEND):
+    def _get_WINLEN_SECONDS(self, TSTA, TEND):
         """
         Read first file in list to get window size in seconds.
         """
@@ -537,17 +539,17 @@ class Interpolator(Analyzer):
         for tsta, tend in self.iter_time(TSTA, TEND):
             self.get_data(tsta, tend)
             self.logger.debug("Time range to get window size: {} - {}".format(tsta, tend))
-            self.logger.info("Expecting window size is {:g}s".format(self.seconds_per_window))
-            self.SECONDS_PER_WINDOW = self.seconds_per_window
+            self.logger.info("Expecting window size is {:g}s".format(self.winlen_seconds))
+            self.WINLEN_SECONDS = self.winlen_seconds
             break
 
 
-    def _set_check_SECONDS_PER_WINDOW(self):
-        if not hasattr(self, "SECONDS_PER_WINDOW"):
+    def _set_check_WINLEN_SECONDS(self):
+        if not hasattr(self, "WINLEN_SECONDS"):
             self.logger.info("Expecting window size = {:g}s".format(
-                self.seconds_per_window))
-            self.SECONDS_PER_WINDOW = self.seconds_per_window
-        elif self.SECONDS_PER_WINDOW != self.seconds_per_window:
+                self.winlen_seconds))
+            self.WINLEN_SECONDS = self.winlen_seconds
+        elif self.WINLEN_SECONDS != self.winlen_seconds:
             msg = "Window size changed"
             self.logger.error(msg)
             raise RuntimeError(msg)
@@ -561,17 +563,18 @@ class Interpolator(Analyzer):
     
     
     def _interpolate(self, kernel_size, kernel_shift):
+        self.logger.debug("Running self._interpolate()")
         x = self.amplitudes
         X = util.get_overlapping_frames(x, 
                                        kernel_size, kernel_shift)
         
-        print(x.size, X.shape)
+        #print(x.size, X.shape)
         self._check_framed_shape(x, X, kernel_shift, "amplitude")
         amplitudes_ = np.nanmedian(X, axis=1)
 
         x = self.psds[:,0]
         X = util.get_overlapping_frames(x, kernel_size, kernel_shift)
-        print(x.size, X.shape)
+        #print(x.size, X.shape)
         self._check_framed_shape(x, X, kernel_shift, "psd")
         PSD_ = np.array([np.nanmedian(
                 util.get_overlapping_frames(x, kernel_size, kernel_shift),axis=1) 
@@ -594,51 +597,68 @@ class Interpolator(Analyzer):
                 new_tsta = _tsta
                 #_tend = _tend + 24*3600
             
-            N = int((_tend-new_tsta) / self.SECONDS_PER_WINDOW) 
+            N = int((_tend-new_tsta) / self.WINLEN_SECONDS) 
             n_kernels, n_left = np.divmod(N, kernel_shift)
-            #n_left = int(samples_left / self.SECONDS_PER_WINDOW)
-            print(N, n_kernels, n_left)
-            
-            #Nadd = (kernel_size - n_left)
-            
-            #tend = tend - n_left*self.SECONDS_PER_WINDOW + kernel_size*self.seconds_per_window
-            new_tend = _tend + (kernel_size-n_left)*self.SECONDS_PER_WINDOW
+            new_tend = _tend + (kernel_size-n_left)*self.WINLEN_SECONDS
             self.logger.debug("Times adjusted to kernel: {} - {}".format(
                 new_tsta, new_tend))
             
             yield new_tsta, new_tend
             
-            new_tsta = new_tend - kernel_size*self.SECONDS_PER_WINDOW 
+            new_tsta = new_tend - kernel_size*self.WINLEN_SECONDS 
             
       
-    def interpolate(self, kernel_size, kernel_shift=1, outdir="."):
+    def _check_kernelshiftsize(self, kernel_shift):
+        try:
+            util.assert_integer_quotient_of_wins_per_fileunit(
+                self.winlen_seconds*kernel_shift, self.fileunit
+            )
+        except UserWarning:
+            self.logger.warning(
+                "{:g} is bad choice for `kernel_shift`! ".format(kernel_shift))
+            raise UserWarning(
+                "{:g} is bad choice for `kernel_shift`! ".format(kernel_shift) +
+                "Yields new `winlen_seconds` of {:g}s ".format(self.winlen_seconds) + 
+                "which must yield integer quotient when dividing total "+
+                "duration in file, i.e. effectively 1 hour or 24 hours.")
+
+
+    def interpolate(self, kernel_size, kernel_shift=1, outdir=".",
+            force_new_file=False):
+
+        
+
         TSTA, TEND = self.get_available_timerange()
         TSTA = UTC(TSTA.date)
         TEND = UTC(TEND.date)
-        print(self.seconds_per_window)
-        self._get_SECONDS_PER_WINDOW(TSTA, TEND)
-        
+        self._get_WINLEN_SECONDS(TSTA, TEND)
+        self._check_kernelshiftsize(kernel_shift)
+        ofilemanager = base.ProcessedDataFileManager(outdir, 
+                                fileunit=self.fileunit)
         self.logger.debug("\n\nStarting interpolation\n")
         for tsta, tend in self.iter_times_kernel(TSTA, TEND, kernel_size, kernel_shift):
             
             self.logger.debug("Yielded {} - {}".format(tsta, tend))
             #tsta = tsta
-            #tend = tend + 24*3600# + (kernel_size-kernel_shift)*self.SECONDS_PER_WINDOW 
+            #tend = tend + 24*3600# + (kernel_size-kernel_shift)*self.WINLEN_SECONDS 
             self.logger.info("Interpolating {:} - {}".format(tsta, tend))
-            self.logger.debug("Getting data...")
+            #self.logger.debug("Getting data...")
             
             self.get_data(tsta, tend)
             self.trim(tsta, tend, fill_value=np.nan)
-            self._set_check_SECONDS_PER_WINDOW()
-            self.logger.debug("Interpolating")
-            #self.logger.debug("{} - {}".format(self.startdate, self.enddate))
+            self._set_check_WINLEN_SECONDS()
+            
             amplitudes_, psds_ = self._interpolate(kernel_size, kernel_shift)
             self.set_data(amplitudes_, psds_, self.frequency_axis)
-            self.set_time(tsta, tend+(kernel_shift-kernel_size)*self.SECONDS_PER_WINDOW)
-            self.seconds_per_window = kernel_shift*self.SECONDS_PER_WINDOW
+            #print(tsta, tend, tend+(kernel_shift-kernel_size)*self.WINLEN_SECONDS)
+            self.set_time(tsta, tend+(kernel_shift-kernel_size)*self.WINLEN_SECONDS)
+            self.winlen_seconds = kernel_shift*self.WINLEN_SECONDS
             self._check_shape_vs_time()
             
-            self.to_file(outdir)
+            ofilemanager.set_data(self)
+            ofilemanager.write_data(force_new_file, force_fileunit=False)
+            # self.to_file(outdir)
+
             self.logger.debug("\n")
 
        

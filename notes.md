@@ -110,9 +110,18 @@ we plot the entire available time range
 
 - to get metadata from HDF5 files (Interpolator) is it more efficient to access metadata dirctly?
 
+- Management of HDF5 output files: naming conventions, setting of start/endtime,
+determination of necessary array dimensions
+I tried allow any kernel_shift for the interpolator and thus every possible window
+size in the ProcessedData. Turns out though that this makes the handling of the continuous year/month/day/-output files horribly complicated. Especially, it makes
+it impossible to recompute a single file because the start/end date depends on the
+previous file and thus from the very first startdate in the sequence.
+Life would be much easier if we only allow window sizes that divide 24h without remainder.
+
 
 # Misc
 - https://www.pythonmorsels.com/making-read-only-attribute/#a-property-is-like-an-auto-updating-attribute
+
 
 
 # Docs

@@ -63,7 +63,7 @@ def _create_hdf5_attribs(f, stationcode, starttime, endtime,
     f.attrs.create('starttime',  np.array(starttime.timetuple()[:6]))
     f.attrs.create('endtime', np.array(endtime.timetuple()[:6]))
     f.attrs.create('amplitude_frequencies', np.array(freqs))
-    f.attrs.create('seconds_per_window', np.array(winlen_seconds))
+    f.attrs.create('winlen_seconds', np.array(winlen_seconds))
     #f.attrs.create('seconds_per_proclen', np.array(proclen_seconds))
 
 
@@ -407,7 +407,7 @@ def _get_data_indices(DATA, times):
         inds_amp = slice(i, j)
 
         # PSD indices
-        inds_psd = [int((t - DATA.startdate) / DATA.seconds_per_window )
+        inds_psd = [int((t - DATA.startdate) / DATA.winlen_seconds )
                 for t in times] 
 
         return inds_amp, inds_psd
@@ -672,6 +672,29 @@ datetime_flags = {"Y" : 24*3600*365,
        "h" : 3600,
        "m" : 60,
        "s" : 1}
+
+
+
+possible_days_per_fileunit = {"year": [365, 366],
+                        "month": [28, 30, 31],
+                        "day": [1],
+                        "hour": [1/24]}
+possible_durations_per_fileunit = {k: [24*3600*i for i in v] 
+                        for k, v in possible_days_per_fileunit.items()}
+
+
+def assert_integer_quotient_of_wins_per_fileunit(winlen_seconds, fileunit):
+    intquot = all([(dur % winlen_seconds) == 0 for 
+                   dur in possible_durations_per_fileunit[fileunit]])
+    if not intquot:
+        msg = ("Bad `winlen_seconds` ({:g}s)! ".format(winlen_seconds) + 
+            "Must yield integer quotient when dividing total duration "+
+            "in file, i.e. effectively 1 hour or 24 hours.")
+        raise UserWarning(msg)
+    
+
+
+
 
 
 def choose_datetime_inc(dt):
