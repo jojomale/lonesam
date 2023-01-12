@@ -16,10 +16,6 @@ def create_logger():
         uses regular expressions
      
     """
-    # print("eida_logger NAME", __name__)
-    # print("eida_logger PCKG", __package__)
-    #print("MODULE", __name__.__module__)
-
     # Try to get the package name, may not work for python <3.9 versions
     try: 
         if __package__ is None and __name__ != "__main__":
@@ -41,22 +37,19 @@ def create_logger():
     if not logger.hasHandlers():
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)  # set level
-        cformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                                    datefmt='%y-%m-%d %H:%M:%S')
+        cformatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+             datefmt='%y-%m-%d %H:%M:%S')
         ch.setFormatter(cformatter)
         logger.addHandler(ch)
     return logger
 
 
-def configure_handlers(logger, loglevel_console, loglevel_file, 
-                        logfilename, use_new_file=False
-                      #  log_timeunit, log_backupcount, log_interval
+def configure_handlers(loglevel_console, loglevel_file=None, 
+                        logfilename=None, use_new_file=False
                         ):
-    
-    if use_new_file:
-        filemode = "w"
-    else:
-        filemode = "a"
+    logger = create_logger()
+    #print(logger)
     
     # Remove any existing handlers
     for hdl in logger.handlers:
@@ -66,32 +59,46 @@ def configure_handlers(logger, loglevel_console, loglevel_file,
     ## console handler
     ch = logging.StreamHandler()
     ch.setLevel(loglevel_console)  # set level
+    cformatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%y-%m-%d %H:%M:%S')
+    ch.setFormatter(cformatter)
+    logger.addHandler(ch)
 
     ## file handler
-    #fh = logging.handlers.TimedRotatingFileHandler(
-    #        os.path.join(logfilename, 'eida_availability_log'), 
-    #        when=log_timeunit, backupCount=log_backupcount, interval=log_interval)
-    fh = logging.FileHandler(logfilename, mode=filemode)
-    fh.setLevel(loglevel_file)
+    if logfilename and loglevel_file:
+        if use_new_file:
+            filemode = "w"
+        else:
+            filemode = "a"
+        fh = logging.FileHandler(logfilename, mode=filemode)
+        fh.setLevel(loglevel_file)
+        hformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(hformatter)
+        logger.addHandler(fh)
+        logger.info("Find log file at %s" % logfilename)
+
+
+
+# def create_console_handler(loglevel):
+#     pass
+
+
+
+
+# def create_file_handler(loglevel, logfilename, 
+#                         use_new_file=False):
     
-    ## create formatter
-    cformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                                    datefmt='%y-%m-%d %H:%M:%S')
-    hformatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    ### add formatter to ch
-    ch.setFormatter(cformatter)
-    fh.setFormatter(hformatter)
-
-    # add handlers to main logger, if it doesn't has some already.
-    # This happens if different modules are used by a script because
-    # each one calls create_logger once.
-    # We don't need to add the handlers again, messages are propagated
-    # up to main logger. Otherwise messages are duplicated.
-    #if not logger.hasHandlers():
-    logger.addHandler(ch)
-    logger.addHandler(fh)
-
-    
-    logger.info("Find log file at %s" % logfilename)
-        #os.path.join(logfilename, 'dataqc.log'))
+#     if not logfilename:
+#         logfilename = "dataqc.log"
+#     ## file handler
+#     if use_new_file:
+#         filemode = "w"
+#     else:
+#         filemode = "a"
+#     fh = logging.FileHandler(logfilename, mode=filemode)
+#     fh.setLevel(loglevel)
+#     hformatter = logging.Formatter(
+#         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#     fh.setFormatter(hformatter)
+#     return fh
