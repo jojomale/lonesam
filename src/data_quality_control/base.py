@@ -932,6 +932,7 @@ class BaseProcessedData():
             obviously.
         """
         # If there is no data yet, we can simply read it from file
+        self.logger.info("Extending from file {}".format(file))
         if (self.amplitudes is None and
             self.psds is None):
             self.from_file(file)
@@ -987,7 +988,7 @@ class BaseProcessedData():
         #print(self)
         #print()
         #print(new)
-        self.logger.debug("Extending data")
+        self.logger.debug("Inserting new in existing data")
         tmin = min(self.startdate, new.startdate)
         tmax = max(self.enddate, new.enddate)
         #days = timedelta(seconds=tmax-tmin).days+1

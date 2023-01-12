@@ -168,13 +168,14 @@ class Analyzer(base.BaseProcessedData):
         stime = starttimes[0]
             
         self.files = self._get_filenames(stime, etime)
+        self.logger.debug("Expecting files {}".format(self.files))
         #print("Before loading", self.stationcode)
         for fname in self.files:
             #self.logger.info("Loading %s" % fname)
             self.extend_from_file(fname)
             #print("During load", self.stationcode)
 
-        self.trim_nan()
+        #self.trim_nan()
         #self.logger.debug("Analyzer here")
         #self.fill_days()
         self._check_if_requested_times_are_available(stime, etime)
