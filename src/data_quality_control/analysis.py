@@ -169,15 +169,9 @@ class Analyzer(base.BaseProcessedData):
             
         self.files = self._get_filenames(stime, etime)
         self.logger.debug("Expecting files {}".format(self.files))
-        #print("Before loading", self.stationcode)
         for fname in self.files:
-            #self.logger.info("Loading %s" % fname)
             self.extend_from_file(fname)
-            #print("During load", self.stationcode)
 
-        #self.trim_nan()
-        #self.logger.debug("Analyzer here")
-        #self.fill_days()
         self._check_if_requested_times_are_available(stime, etime)
         
         self._check_shape_vs_time()
@@ -572,13 +566,13 @@ class Interpolator(Analyzer):
         X = util.get_overlapping_frames(x, 
                                        kernel_size, kernel_shift)
         
-        print(x.size, X.shape)
+        #print(x.size, X.shape)
         self._check_framed_shape(x, X, kernel_shift, "amplitude")
         amplitudes_ = np.nanmedian(X, axis=1)
 
         x = self.psds[:,0]
         X = util.get_overlapping_frames(x, kernel_size, kernel_shift)
-        print(x.size, X.shape)
+        #print(x.size, X.shape)
         self._check_framed_shape(x, X, kernel_shift, "psd")
         PSD_ = np.array([np.nanmedian(
                 util.get_overlapping_frames(x, kernel_size, kernel_shift),axis=1) 

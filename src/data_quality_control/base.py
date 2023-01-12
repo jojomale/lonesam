@@ -293,8 +293,6 @@ class GenericProcessor():
             for n, s, l, c in self.iter_nslc():
                 nscproc = NSCProcessor(n, s, l, c, self.client,
                                 self.invclient, procparams=self.proc_params)
-                #print(nscproc)
-                #print()
                 self.logger.debug("Times passed to nscprocessor: {} - {}".format(
                     _starttime, _endtime
                 ))
@@ -497,7 +495,6 @@ class NSCProcessor():
         """
         self.starttime = starttime
         self.endtime = endtime
-        self.logger.debug(self)
         if preprocessing is None:
             preprocessing = util.process_stream
         fmin, fmax = self.processing_params.amplitude_frequencies
@@ -510,7 +507,6 @@ class NSCProcessor():
                         self.stationcode,
                         self.processing_params.amplitude_frequencies, 
                         self.processing_params.winlen_seconds,
-                        #self.processing_params.proclen_seconds
                         )
         starttime = starttime-self.processing_params.overlap
 
@@ -550,7 +546,6 @@ class NSCProcessor():
             #sr = tr.stats.sampling_rate
             nf = int(self.processing_params.proclen_seconds/
                      self.processing_params.winlen_seconds)
-            #proclen_samples = proclen * sr
             winlen_samples = int(self.processing_params.winlen_seconds * 
                                  self.processing_params.sampling_rate)
             
@@ -612,7 +607,6 @@ class BaseProcessedData():
                 stationcode="....", 
                 amplitude_frequencies=(None,None),
                 winlen_seconds=None, 
-                #proclen_seconds=None
                 ):
         self.logger = logging.getLogger(module_logger.name+
                             '.'+"BaseProcessedData")
@@ -624,11 +618,9 @@ class BaseProcessedData():
         self.stationcode = stationcode
         self.amplitude_frequencies = amplitude_frequencies
         self.winlen_seconds = winlen_seconds
-        # self.proclen_seconds = proclen_seconds
         
         self.set_time(startdate, enddate)
-        #self.logger.debug("Initial range: {} - {}".format(self.startdate, self.enddate))
-
+        
 
     def get_nslc(self):
         """
@@ -652,7 +644,6 @@ class BaseProcessedData():
             self.amplitudes = np.array(fin['amplitudes'])
             self.frequency_axis = np.array(fin['frequency_axis'])
             self.psds = np.array(fin['psds'])
-            #self.proclen_seconds = fin.attrs['seconds_per_proclen']
         return self
 
     
@@ -842,7 +833,6 @@ class BaseProcessedData():
             "Removed {} samples from beginning and {} samples from end".format(n, m))
         self.logger.debug("Shapes after trim_nan: {}, {}".format(
                 self.amplitudes.shape, self.psds.shape))
-        #print((self.enddate - self.startdate) / self.winlen_seconds,  self.amplitudes.size)
         
         self._check_shape_vs_time()
                 
@@ -851,8 +841,7 @@ class BaseProcessedData():
     
     def get_samples_to_midnight(self):
         seconds_per_ydim = 24*3600
-        samples_per_ydim = int(seconds_per_ydim / self.winlen_seconds)
-        #print(samples_per_ydim)
+        #samples_per_ydim = int(seconds_per_ydim / self.winlen_seconds)
 
         new_startdate = UTC(self.startdate.date)
         new_enddate = UTC(self.enddate.date) + seconds_per_ydim
@@ -985,13 +974,9 @@ class BaseProcessedData():
         frequency axis are compatible.
         """
         # Get total number of days to get new array sizes
-        #print(self)
-        #print()
-        #print(new)
         self.logger.debug("Inserting new in existing data")
         tmin = min(self.startdate, new.startdate)
         tmax = max(self.enddate, new.enddate)
-        #days = timedelta(seconds=tmax-tmin).days+1
 
         # Replace proclen with winlen?
         nrows = int((tmax-tmin) / self.winlen_seconds)
@@ -1023,7 +1008,6 @@ class BaseProcessedData():
         self.psds = new_psds
         self.startdate = UTC(tmin.date)
         self.enddate = UTC(tmax.date)
-        #print(self)
         self._check_shape_vs_time()
         self.trim_nan()
 
@@ -1126,7 +1110,6 @@ class BaseProcessedData():
         self.logger.debug(
             "Time incr & format for time / y: {:g} {}".format(
                 dtinc, dtflag))
-        #print(dtflag, dtinc)
         new_startdate = UTC(self.startdate.date)
         new_enddate = UTC(self.enddate.date) + seconds_per_ydim
 
