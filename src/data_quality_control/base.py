@@ -8,8 +8,9 @@ terms of data source and selecting time intervals for window
 size, processing length and file units.
 
 The processing workflow is managed by the 
-``GenericProcessor``-class, which can used as base for
-more customized classes. E.g. the ``sds_db.SDSProcessor``
+:py:class:`.GenericProcessor`, which can used as base for
+more customized classes. E.g. the 
+:py:class:`data_quality_control.sds_db.SDSProcessor`
 is taylored to using the sds-client of obspy.
 """
 from functools import wraps
