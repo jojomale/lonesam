@@ -683,7 +683,8 @@ possible_durations_per_fileunit = {k: [24*3600*i for i in v]
                         for k, v in possible_days_per_fileunit.items()}
 
 
-def assert_integer_quotient_of_wins_per_fileunit(winlen_seconds, fileunit):
+def assert_integer_quotient_of_wins_per_fileunit(
+    winlen_seconds, fileunit):
     intquot = all([(dur % winlen_seconds) == 0 for 
                    dur in possible_durations_per_fileunit[fileunit]])
     if not intquot:

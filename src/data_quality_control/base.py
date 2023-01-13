@@ -1139,7 +1139,7 @@ class BaseProcessedData():
 
     def _check_shapes(self, new):
         """
-        **Deprecated!**
+        .. deprecated:: 1.0
 
         Checks if number of processing windows
         and frequency axis of psd and amplitude are

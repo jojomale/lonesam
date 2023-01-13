@@ -36,17 +36,18 @@ enddate = UTC("2021-01-10")
 logfilename = "log/test_processing.log"
 
 # Set verbosity: "ERROR" < "WARNING" < "INFO" < "DEBUG"
-dqclogging.configure_handlers(sds_db.logger, "INFO", "DEBUG", 
-    logfilename, use_new_file=True)
+dqclogging.configure_handlers("INFO", "DEBUG", logfilename, 
+                                use_new_file=True)
+
 
 
 
 def main():
     # Clean output directory
     if outdir.exists():
-        for f in outdir.glob("*"):
+        for f in outdir.glob("*hdf5"):
             os.remove(f)
-        outdir.rmdir()
+        #outdir.rmdir()
 
     assert sds_root.exists(), "sample sds database {} not found".format(str(sds_root))
 

@@ -46,6 +46,19 @@ class Analyzer(base.BaseProcessedData):
         flag indicating the expected time range per file. 
         Determines the search pattern for files.
 
+    Attributes
+    ----------------
+    iter_time(starttime, endtime) : func
+        Generator providing start and endtime of HDF5-files
+        within requested timerange
+        depending on :py:attr:`.fileunit`
+        
+        See 
+        
+        - ``fileunit="year"``: :py:func:`data_quality_control.util.iter_years` ,
+        - ``fileunit="month"``::py:func:`data_quality_control.util.iter_month` , 
+        - ``fileunit="day"``::py:func:`data_quality_control.util.iter_days` ,
+        - ``fileunit="hour"``::py:func:`data_quality_control.util.iter_hours`
 
     """
 
@@ -595,6 +608,12 @@ class Interpolator(Analyzer):
     
     Grandparent is :py:class:`BaseProcessedData`.
 
+    The main routine to call is :py:meth:`.interpolate`. 
+    The other methods are mostly helpers to perform the
+    smoothing/downsampling, organize the iteration
+    over the data base and manage IO-operations. They can
+    be useful on their own, though. 
+
     Parameters
     ------------------
     datadir : :py:class:`pathlib.Path`
@@ -604,15 +623,132 @@ class Interpolator(Analyzer):
     fileunit : {"year", "month", "day", "hour"}
         flag indicating the expected time range per file. 
         Determines the search pattern for files.
+    kernel_size : int > 1
+        Number of samples over which median is computed.
+        1 sample corresponds to the window size of the
+        original data.
+    kernel_shift : int >= 1
+        Number of samples by which the kernel is shifted to
+        compute the next median. See :py:attr:`.kernel_shift`
+
+
+    Example
+    -----------
+
+    .. code-block:: python
+
+        from data_quality_control import analysis, dqclogging
+
+        nslc_code = "GR.BFO..BHZ"
+        datadir = "output/"
+        outdir = "output/interpolated/"
+        kernel_size = 6
+        kernel_shift = 3
+
+        # Set loglevel in console, no logfile
+        dqclogging.configure_handlers(loglevel_console="INFO",
+                                    loglevel_file=None)
+
+        # Interpolation
+        ## Initiate interpolator
+        polly = analysis.Interpolator(datadir, nslc_code, 
+                                    kernel_size=kernel_size, 
+                                    kernel_shift=kernel_shift)
+
+        ## Start interpolation over whole available time range
+        polly.interpolate(outdir, force_new_file=True)
+
+        # View results
+        lyza = analysis.Analyzer(datadir, nslc_code,
+                                    fileunit="year")
+
+        startdate = UTC("2020-12-24")
+        enddate = UTC("2021-01-15")
+        lyza.get_data(startdate, enddate)
+
+        fig = lyza.plot_spectrogram()
+
+
+    Attributes
+    -----------------
+    kernel_size : int > 1
+        Number of samples over which median is computed.
+        1 sample corresponds to the window size of the
+        original data.
+    kernel_shift : int >= 1
+        Number of samples by which the kernel is shifted to
+        compute the next median. ``kernel_shift=1`` corresponds
+        to a classic running median, 
+        ``kernel_shift>1`` downsamples the original data. 
+        Determines 
+        :py:attr:`data_quality_control.base.BaseProcessedData.winlen_seconds`. 
+        For example if the seismic data were processed using 
+        ``winlen_seconds=3600`` the new 
+        :py:attr:`data_quality_control.base.BaseProcessedData.winlen_seconds`
+        is 6*3600s = 21600s.
+    WINLEN_SECONDS : int
+        window size in seconds of the original processed data, i.e.
+        the window size over which amplitudes and psds were computed
+        from the seismic data. Is set based on the value in the
+        first file and checked against 
+        :py:attr:`data_quality_control.base.BaseProcessedData.winlen_seconds` 
+        of every subsequent file. Raises :py:exc:`RuntimeError` if it changes.
+    winlen_seconds : int
+        Window size in seconds of the current data. Changes with every 
+        iteration, i.e. every newly read file, between value 
+        of the original processed data read from file and 
+        ``kernel_shift*winlen_seconds`` after the median operation 
+        is applied.
     """
 
     def __init__(self, datadir, nslc_code,
-                fileunit="year"):
+                fileunit="year",
+                kernel_size=None,
+                kernel_shift=None):
         super().__init__(datadir, nslc_code, fileunit)
         self.logger = logging.getLogger(module_logger.name+
                             '.'+"Interpolator")
         self.logger.setLevel(logging.DEBUG)
+        self.kernel_size = None
+        self.kernel_shift = None
+        self.set_kernel(kernel_size, kernel_shift)
     
+
+    def set_kernel(self, kernel_size, kernel_shift):
+        """
+        Set kernel parameters. Forces integers.
+
+        Preserves existing attribute if 
+        ``kernel_size=None`` or ``kernel_shift=None``.
+
+        Parameters
+        -------------
+        kernel_size : num > 1
+            Number of samples over which median is computed.
+            1 sample corresponds to the window size of the
+            original data.
+        kernel_shift : num > 1
+            Number of samples by which the kernel is shifted to
+            compute the next median. See :py:attr:`.kernel_shift`
+        """
+        if kernel_size:
+            kernel_size = int(kernel_size)
+        elif self.kernel_size:
+            kernel_size = self.kernel_size
+
+        if kernel_shift:
+            kernel_shift = int(kernel_shift) 
+        elif self.kernel_shift:
+            kernel_shift = self.kernel_shift
+
+        self.kernel_size = kernel_size  
+        self.kernel_shift = kernel_shift
+        self.logger.info("Set kernel_size={}, kernel_shift={}".format(
+            str(self.kernel_size), str(self.kernel_shift)
+        ))
+        # Add check assert_integer_quotient with self.WINLEN_SECONDS?
+        # If so WINLEN_SECONDS would need to be a permanent attribute.
+
 
     def _get_WINLEN_SECONDS(self, TSTA, TEND):
         """
@@ -624,6 +760,20 @@ class Interpolator(Analyzer):
             beginning of time range in which we look for data.
         TEND : UTCDateTime
             end of time range in which we look for data.
+
+        Example
+        -----------
+        If you want to know the ``winlen_seconds`` in your targeted
+        data base, adjust the following code snippet:
+
+        .. code-block:: python
+
+            nslc_code = "GR.BFO..BHZ"
+            datadir = "output/"
+            polly = analysis.Interpolator(datadir, nslc_code)                             
+            polly._get_WINLEN_SECONDS(*polly.get_available_timerange())
+            print("Winlen in processed data", polly.WINLEN_SECONDS)
+        
         """
         self.logger.debug("\n\nLooking for window size")
         for tsta, tend in self.iter_time(TSTA, TEND):
@@ -636,9 +786,9 @@ class Interpolator(Analyzer):
 
     def _set_check_WINLEN_SECONDS(self):
         """
-        Sets :py:attr:`WINLEN_SECONDS` if not set,
+        Sets :py:attr:`.WINLEN_SECONDS` if not set,
         otherwise raises error if different from 
-        py:attr:`winlen_seconds`. 
+        py:attr:`.winlen_seconds`. 
         Used to monitor if window size changes between files.
         """
         if not hasattr(self, "WINLEN_SECONDS"):
@@ -651,7 +801,7 @@ class Interpolator(Analyzer):
             raise RuntimeError(msg)
 
             
-    def _check_framed_shape(self, x, X, kernel_shift, label=""):
+    def _check_framed_shape(self, x, X, label=""):
         """
         Used in :py:meth:`._interpolate` to check if all data
         went into frames. 
@@ -666,14 +816,21 @@ class Interpolator(Analyzer):
             distance between two frames in samples
         label : str
             name of x for more meaningful error msg.
+
+
+        Raises
+        ---------
+        AssertionError
+            if there are samples left.
+
         """
         nk, ks = X.shape
-        ns = (nk-1)*kernel_shift+ks
+        ns = (nk-1)*self.kernel_shift+ks
         assert ns == x.size, \
             "{:d} of {} timeseries remain".format(x.size-ns, label)
     
     
-    def _interpolate(self, kernel_size, kernel_shift):
+    def _interpolate(self):
         """
         Transform timeseries data into frames and apply
         median operation.
@@ -681,29 +838,45 @@ class Interpolator(Analyzer):
         self.logger.debug("Running self._interpolate()")
         x = self.amplitudes
         X = util.get_overlapping_frames(x, 
-                                       kernel_size, kernel_shift)
+                                    self.kernel_size, self.kernel_shift)
         
         #print(x.size, X.shape)
-        self._check_framed_shape(x, X, kernel_shift, "amplitude")
+        self._check_framed_shape(x, X, "amplitude")
         amplitudes_ = np.nanmedian(X, axis=1)
 
         x = self.psds[:,0]
-        X = util.get_overlapping_frames(x, kernel_size, kernel_shift)
+        X = util.get_overlapping_frames(
+            x, self.kernel_size, self.kernel_shift)
         #print(x.size, X.shape)
-        self._check_framed_shape(x, X, kernel_shift, "psd")
+        self._check_framed_shape(x, X, "psd")
         PSD_ = np.array([np.nanmedian(
                 util.get_overlapping_frames(
-                    x, kernel_size, kernel_shift),axis=1) 
+                    x, self.kernel_size, self.kernel_shift),axis=1) 
                          for x in self.psds.T]).T
         
         return amplitudes_, PSD_
     
     
-    def iter_times_kernel(self, tsta, tend, kernel_size, kernel_shift):
-        """        
-        Note
-        -------
-        yielded endtime is starttime of last sample plus window size.
+    def iter_times_kernel(self, tsta, tend):
+        """
+        Generator providing start and endtime of data to read
+        for interpolation.
+
+        It's a wrapper around 
+        :py:meth:`data_quality_control.analysis.Analyzer.iter_time` 
+        which adjusts the yielded start and endtimes by 
+        ``kernel_shift``, ``kernel_size`` and ``WINLEN_SECONDS`` to
+        accommodate all data to interpolate over the entire ``fileunit``.
+
+
+        Yields
+        -------------
+        new_tsta : :py:class:`UTCDateTime`
+            starttime of data to read for interpolation. Determined
+            by ``new_tend`` except for first one.
+        new_tend : :py:class:`UTCDateTime`
+            endtime of data to read for interpolation
+
         """
         new_tsta = None
         new_tend = None
@@ -712,36 +885,51 @@ class Interpolator(Analyzer):
             if not new_tsta:
                 new_tsta = _tsta
 
-            new_tend = _tend + (kernel_size-kernel_shift)*self.WINLEN_SECONDS
+            new_tend = _tend + (self.kernel_size-self.kernel_shift)*self.WINLEN_SECONDS
             self.logger.debug("Times adjusted to kernel: {} - {}".format(
                 new_tsta, new_tend))
             
             yield new_tsta, new_tend
             
-            new_tsta = new_tend + (kernel_shift-kernel_size)*self.WINLEN_SECONDS 
+            new_tsta = new_tend + (self.kernel_shift-self.kernel_size)*self.WINLEN_SECONDS 
             
       
-    def _check_kernelshiftsize(self, kernel_shift):
+    def _check_kernelshiftsize(self):
+        """
+        Check if :py:attr:`.winlen_seconds` and
+        :py:attr:`kernel_shift` if resulting increment
+        does not yield an integer quotient of possible
+        total durations defined by :py:attr:`.fileunit`.
+
+        Runs 
+        :py:func:`data_quality_control.util.assert_integer_quotient_of_wins_per_fileunit`
+
+        Raises
+        ----------
+        UserWarning
+            if ``kernel_shift`` yields inappropriate increment
+        """
         try:
             util.assert_integer_quotient_of_wins_per_fileunit(
-                self.winlen_seconds*kernel_shift, self.fileunit
+                self.winlen_seconds*self.kernel_shift, self.fileunit
             )
         except UserWarning:
             self.logger.warning(
-                "{:g} is bad choice for `kernel_shift`! ".format(kernel_shift))
+                "{:g} is bad choice for `kernel_shift`! ".format(self.kernel_shift))
             raise UserWarning(
-                "{:g} is bad choice for `kernel_shift`! ".format(kernel_shift) +
+                "{:g} is bad choice for `kernel_shift`! ".format(self.kernel_shift) +
                 "Yields new `winlen_seconds` of {:g}s ".format(self.winlen_seconds) + 
-                "which must yield integer quotient when dividing total "+
+                "which does not yield integer quotient when dividing total "+
                 "duration in file, i.e. effectively 1 hour or 24 hours.")
 
 
-    def interpolate(self, kernel_size, kernel_shift=1, outdir=".",
-            starttime=None, endtime=None,
-            force_new_file=False):
-
+    def _get_start_endtime(self, starttime=None, endtime=None):
+        """
+        Replace ``None`` input parameters with 
+        start/end time from all available data.
+        """
         if starttime is None or endtime is None:
-            self.logger.info("\n\ninterpolate(): Looking up available timerange "+
+            self.logger.info("Looking up available timerange "+
                 "because start or endtime is None.\n")
             TSTA, TEND = self.get_available_timerange()
             TSTA = UTC(TSTA.date)
@@ -750,15 +938,58 @@ class Interpolator(Analyzer):
                 starttime = TSTA
             if endtime is None:
                 endtime = TEND
+        return starttime, endtime
 
+
+    def interpolate(self, outdir=".",
+            starttime=None, endtime=None,
+            kernel_size=None, kernel_shift=None, 
+            force_new_file=False):
+        """
+        Performs smoothing/downsampling of database for 
+        requested time range.
+
+        Parameters
+        ---------------
+        outdir : str
+            directory where new results are stored. Should
+            be different from :py:attr:`.datadir` because
+            file names will be identical and would override
+            input data.
+        starttime : UTCDateTime
+            Begin of time range to process. If ``None`` earliest
+            available time in database is used.
+        endtime : UTCDateTime
+            End of time range to process. If ``None`` lastest
+            available time in database is used.
+        kernel_size : int, None
+            See :py:attr:`.kernel_size`. Overrides existing value.
+            Must be set here if not set on initialization. 
+        kernel_shift : int, None
+            See :py:attr:`.kernel_shift`. Overrides existing value.
+            Must be set here if not set on initialization.
+        force_new_file : bool [False] 
+            If ``True`` overwrites existing output data.
+        """
+        
+        self.logger.info("\n\nStarting interpolate()")
+
+        if Path(outdir) == Path(self.datadir):
+            msg = ("datadir is same as outdir. " +
+                    "May override input data base!")
+            self.logger.warn(msg)
+            raise UserWarning(msg)
+
+        starttime, endtime = self._get_start_endtime(starttime, endtime)
         self._get_WINLEN_SECONDS(starttime, endtime)
-        self._check_kernelshiftsize(kernel_shift)
+        self.set_kernel(kernel_size, kernel_shift)
+        self._check_kernelshiftsize()
+
         ofilemanager = base.ProcessedDataFileManager(outdir, 
                                 fileunit=self.fileunit)
 
-        self.logger.info("\n\nStarting interpolation\n")
-        for tsta, tend in self.iter_times_kernel(starttime, endtime, 
-                        kernel_size, kernel_shift):
+        self.logger.info("\n\nIterating files over time range:\n")
+        for tsta, tend in self.iter_times_kernel(starttime, endtime):
             
             #self.logger.debug("Yielded {} - {}".format(tsta, tend))
             #tsta = tsta
@@ -770,12 +1001,13 @@ class Interpolator(Analyzer):
             self.trim(tsta, tend, fill_value=np.nan)
             self._set_check_WINLEN_SECONDS()
             
-            amplitudes_, psds_ = self._interpolate(kernel_size, kernel_shift)
+            amplitudes_, psds_ = self._interpolate()
             self.set_data(amplitudes_, psds_, self.frequency_axis)
             #print(tsta, tend, tend+(kernel_shift-kernel_size)*self.WINLEN_SECONDS)
             self.logger.info("Setting time for output:")
-            self.set_time(tsta, tend+(kernel_shift-kernel_size)*self.WINLEN_SECONDS)
-            self.winlen_seconds = kernel_shift*self.WINLEN_SECONDS
+            self.set_time(
+                tsta, tend+(self.kernel_shift-self.kernel_size)*self.WINLEN_SECONDS)
+            self.winlen_seconds = self.kernel_shift*self.WINLEN_SECONDS
             self._check_shape_vs_time()
             
             ofilemanager.set_data(self)
