@@ -43,6 +43,7 @@ logger = dqclogging.create_logger()
 module_logger = dqclogging.logging.getLogger(logger.name+'.cmdline')
 
 fileunits = list(FNAME_FMTS.keys())
+timefmt = "%Y%m%dT%H"
 
 commons_parser = argparse.ArgumentParser(add_help=False)
 commons_parser.add_argument("--loglevel", type=str,
@@ -79,7 +80,7 @@ def run_processing(args):
         ['starttime', 'endtime']}
 
     loglevel =  init_args.pop("loglevel")
-    dqclogging.configure_handlers(base.logger, loglevel, 
+    dqclogging.configure_handlers(loglevel, 
                 loglevel, init_args.pop("logfile"), 
                 use_new_file=init_args.pop("append_logfile") )
 
@@ -123,21 +124,25 @@ def run_available(args):
     )
 
 
-def run_plot(args):
-    """
-    Create spectrograms and plotly-figures from cli-arguments.
+def run_interpolator(args):
+    pass
 
-    Parameters
-    -----------
-    args : argparse.Namespace
-        parsed cli arguments
-    """
 
+def run_plot_spectrogram(args):
+    """
+    Plot classic spectrogram
+    """
     figdir = args.figdir
-    init_args = {k: args.__getattribute__(k) for k in ["datadir", "nslc_code", "fileunit"]}
-    
+    init_args = {k: args.__getattribute__(k) for k in 
+                ["datadir", "nslc_code", "fileunit"]}
+    plot_args = {k: args.__getattribute__(k) for k in
+                ["log_freq_ax", "fmin", "fmax", "vmax", "vmin"]}
+    plot_args["freqs"] = [plot_args.pop("fmin"), 
+                          plot_args.pop("fmax")]
+    if not plot_args["vmax"]: plot_args.pop("vmax")
+
     lyza = analysis.Analyzer(**init_args)
-    dqclogging.configure_handlers(base.logger, args.loglevel, 
+    dqclogging.configure_handlers(args.loglevel, 
                 args.loglevel, args.logfile, args.append_logfile )
 
     if args.timerange:
@@ -156,7 +161,64 @@ def run_plot(args):
     module_logger.debug("DATA contains {}".format(DATA))
 
     figname = "{}_{}-{}".format(lyza.stationcode, 
-                        lyza.startdate.datetime, 
+                        lyza.startdate.strftime(timefmt), 
+                        lyza.enddate.strftime(timefmt))
+    module_logger.debug("Figure name base: {}".format(figname))
+    fig_cont = lyza.plot_spectrogram(**plot_args)
+    fig_cont.savefig(figdir.joinpath("{}_spectrogram.png".format(figname)))
+    
+    if args.show:
+        show()
+
+
+def run_plot_spectrogram_3d(args):
+    pass
+
+
+def run_plot_amplitudes(args):
+    pass
+
+
+def run_plot_amplitudes_3d(args):
+    pass
+
+
+
+
+def run_plot(args):
+    """
+    Create spectrograms and plotly-figures from cli-arguments.
+
+    Parameters
+    -----------
+    args : argparse.Namespace
+        parsed cli arguments
+    """
+
+    figdir = args.figdir
+    init_args = {k: args.__getattribute__(k) for k in ["datadir", "nslc_code", "fileunit"]}
+    
+    lyza = analysis.Analyzer(**init_args)
+    dqclogging.configure_handlers(args.loglevel, 
+                args.loglevel, args.logfile, args.append_logfile )
+
+    if args.timerange:
+        print("timerange")
+        starttime, endtime = args.timerange #args_dict.pop("timerange")
+    elif args.timelist:
+        print("timelist")
+        starttime = read_file_as_list_of_utcdatetimes(args.timelist)
+        endtime = None
+        print(starttime.__class__)
+    else:
+        print("Using full available timerange")
+        starttime, endtime = lyza.get_available_timerange()
+
+    DATA = lyza.get_data(starttime, endtime)
+    module_logger.debug("DATA contains {}".format(DATA))
+
+    figname = "{}_{}-{}".format(lyza.stationcode, 
+                        lyza.startdate.strftime(), 
                         lyza.enddate.datetime)
     module_logger.debug("Figure name base: {}".format(figname))
     fig_cont = lyza.plot_spectrogram()
@@ -341,7 +403,77 @@ def process(subparsers):
             help="Sampling rate at which data are processed. "+
             "Data are resampled if original SR is different.",
             default=base.default_processing_params["sampling_rate"] )
+
+
+@subcommand
+def plot_spectrogram(subparsers):
+    plot = subparsers.add_parser("plot_spectrogram",
+        parents=[commons_parser],
+        description="Plot PSDs as classic spectrogram," + 
+        " saved as png and " +
+        "optionally shown as interactive matplotlib figure. "
+        )
+    plot.set_defaults(func=run_plot_spectrogram)
+    plot.add_argument("nslc_code", type=str, 
+            help=("station code {network}.{station}.{location}.{channel}," +
+                "May *not* contain wildcards here!"))
+    plot.add_argument("datadir", type=Path, 
+            help="where to look for processed data",
+            default=".")
     
+    plot.add_argument("--fileunit", type=str, 
+            choices=fileunits,
+            help="Time span per HDF5-file. ",
+            default="year")
+    plot.add_argument("-o", "--figdir", type=Path,
+            help="Where to store figures.",
+            default=".")
+    plot.add_argument("-s", "--show",
+        action="store_true",
+        help="If given plot is opened as matplotlib figure.")
+
+    plot.add_argument("--fmin", type=float,
+            help="Minimum frequency", default=None)
+    plot.add_argument("--fmax", type=float,
+            help="Maximum frequency", default=None)
+    plot.add_argument("--log-freq-ax", action="store_true",
+            help="Make frequency axis logarithmic.")
+    plot.add_argument("--vmin", type=float,
+            help="Minimum value of color scale", default=None)
+    plot.add_argument("--vmax", type=float,
+            help="Maximum value of color scale", default=None)
+
+    group = plot.add_mutually_exclusive_group()
+    group.add_argument("-l", "--timelist", type=argparse.FileType("r"), 
+            help=("Plot spectrograms using only times from  timelist." + 
+                    "Can be used as flag to read times from stdin or" + 
+                    "given a file with datetimes."),
+            nargs="?",
+            const=sys.stdin)
+    group.add_argument("-r", "--timerange", type=UTC, nargs=2,
+            help=("Start and end of time range you want to plot. "+ 
+                "Give as YYYY-MM-DDThh:mm:ss, " + 
+                "endtime can be None to use current time."),
+                    )
+
+@subcommand
+def plot_spectrogram_3d(subparsers):
+    pass
+   
+@subcommand
+def plot_amplitudes(subparsers):
+    pass
+
+@subcommand
+def plot_amplitudes_3d(subparsers):
+    pass
+
+@subcommand
+def interpolate(subparsers):
+    pass
+
+
+
 
 @subcommand
 def plot(subparsers):

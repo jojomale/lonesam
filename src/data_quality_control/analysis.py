@@ -391,7 +391,8 @@ class Analyzer(base.BaseProcessedData):
 
 
     def plot_spectrogram(self, ax=None, func=None, 
-            colorbarlabel="",
+            colorbarlabel="", freqs=(None, None),
+            log_freq_ax=False,
              **kwargs):
         """
         Plot power spectral densities as spectrogram.
@@ -418,8 +419,6 @@ class Analyzer(base.BaseProcessedData):
             `cmap=plt.cm.afmhot`,
             `shading=auto`,
             `vmax=np.nanmax(Z)`
-
-
         """
 
         if not "cmap" in kwargs:
@@ -441,11 +440,27 @@ class Analyzer(base.BaseProcessedData):
             xticks = tax[::dtick]
             xticklabels = self.timeax_psd[::dtick]
 
+
+        if any(freqs):
+            freqs = list(freqs)
+            if not freqs[0]:
+                freqs[0] = 0
+            if not freqs[1]:
+                freqs[1] = self.frequency_axis[-1]+1
+            idx = np.where(np.logical_and(
+                                self.frequency_axis>=freqs[0],
+                                self.frequency_axis<=freqs[1]))[0]
+            fax = self.frequency_axis[idx]
+            Z = self.psds.T[idx, :]
+        else:
+            fax = self.frequency_axis
+            Z = self.psds.T
+
         if func:
-            Z = func(self.psds.T)
+            Z = func(Z)
             colorbarlabel = colorbarlabel
         else:
-            Z = np.log10(self.psds.T*1e9**2)
+            Z = np.log10(Z*1e9**2)
             colorbarlabel = r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$'
         
         if not "vmax" in kwargs:
@@ -456,7 +471,7 @@ class Analyzer(base.BaseProcessedData):
             kwargs["vmax"] = kwargs["vmax"]
         self.logger.debug("Kwargs passed to pcolormesh are {}".format(kwargs))
         
-        pmesh = ax.pcolormesh(tax, self.frequency_axis, Z, 
+        pmesh = ax.pcolormesh(tax, fax, Z, 
                             **kwargs)
 
         if not self.timerange:
@@ -467,7 +482,12 @@ class Analyzer(base.BaseProcessedData):
 
         plt.colorbar(pmesh, ax=ax, 
                     label=colorbarlabel
-                    )        
+                    )
+
+        if log_freq_ax: 
+            ylim = ax.get_ylim()
+            ax.set_yscale("log")
+            ax.set_ylim(*ylim)        
         ax.set_xlabel("time")
         ax.set_ylabel("frequency, Hz")
         return fig
