@@ -124,9 +124,6 @@ def run_available(args):
     )
 
 
-def run_interpolator(args):
-    pass
-
 
 def run_plot_spectrogram(args):
     """
@@ -252,6 +249,21 @@ def run_windfilter(args):
     x, f = timelist.read_interp_winddata(**args)
     x = x[np.logical_and(f>=speed["minspeed"], f<=speed["maxspeed"])]
     out.write("\n".join([str(UTC(xi)) for xi in x]))
+
+
+def run_smoothing(args):
+    dqclogging.configure_handlers(args.loglevel, 
+                args.loglevel, args.logfile, args.append_logfile )
+
+    init_args = {k: args.__getattribute__(k) for k in 
+                ["datadir", "nslc_code", "fileunit", 
+                "kernel_size", "kernel_shift"]}
+
+    polly = analysis.SmoothOperator(**init_args)
+
+    ## Start interpolation over whole available time range
+    polly.smooth(args.outdir, force_new_file=args.force_new_file)
+
 
 
 def read_file_as_list_of_utcdatetimes(f):
@@ -582,6 +594,41 @@ def windfilter(subparsers):
             nargs="?")
     windfilter.add_argument("out", type=argparse.FileType("w"),
             nargs="?", default=sys.stdout)
+
+
+@subcommand
+def smooth(subparsers):
+    smooth = subparsers.add_parser("smooth",
+        parents=[commons_parser],
+        description="Smooth / Downsample processed data."
+        )
+    smooth.set_defaults(func=run_smoothing)
+    smooth.add_argument("nslc_code", type=str, 
+            help=("station code {network}.{station}.{location}.{channel}," +
+                "May *not* contain wildcards here!"))
+    smooth.add_argument("datadir", type=Path, 
+            help="Data source. Where to look for the data which you want to smooth",
+            default=".")
+    smooth.add_argument("outdir", type=Path,
+            help="Where to store the smoothed results.",
+            default=".")
+    smooth.add_argument("kernel_size", type=int,
+            help="Number of samples over which median is computed." + 
+                "1 sample covers `proclen` seconds in the original " +
+                "seismic data. ",
+            default=3)
+    smooth.add_argument("kernel_shift", type=int,
+            help="Number of samples by which the smooth.",
+            default=".")    
+
+    smooth.add_argument("--fileunit", type=str, 
+            choices=fileunits,
+            help="Time span per HDF5-file. ",
+            default="year")
+    smooth.add_argument("-f", "--force_new_file",
+            action="store_true",
+            help="Overwrite existing output files.")
+    
 
 
 if __name__ == "__main__":

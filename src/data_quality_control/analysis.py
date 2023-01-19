@@ -710,7 +710,7 @@ class Analyzer(base.BaseProcessedData):
 
 
 
-class MedianSmoother(Analyzer):
+class SmoothOperator(Analyzer):
     """
     Manage smoothing/data reduction of processed amplitudes 
     and PSDs. 
@@ -760,7 +760,7 @@ class MedianSmoother(Analyzer):
 
         # Interpolation
         ## Initiate smoother
-        polly = analysis.MedianSmoother(datadir, nslc_code, 
+        polly = analysis.SmoothOperator(datadir, nslc_code, 
                                     kernel_size=kernel_size, 
                                     kernel_shift=kernel_shift)
 
@@ -816,7 +816,7 @@ class MedianSmoother(Analyzer):
                 kernel_shift=None):
         super().__init__(datadir, nslc_code, fileunit)
         self.logger = logging.getLogger(module_logger.name+
-                            '.'+"MedianSmoother")
+                            '.'+"SmoothOperator")
         self.logger.setLevel(logging.DEBUG)
         self.kernel_size = None
         self.kernel_shift = None
@@ -879,7 +879,7 @@ class MedianSmoother(Analyzer):
 
             nslc_code = "GR.BFO..BHZ"
             datadir = "output/"
-            polly = analysis.MedianSmoother(datadir, nslc_code)                             
+            polly = analysis.SmoothOperator(datadir, nslc_code)                             
             polly._get_WINLEN_SECONDS(*polly.get_available_timerange())
             print("Winlen in processed data", polly.WINLEN_SECONDS)
         
