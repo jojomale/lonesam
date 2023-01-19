@@ -28,6 +28,18 @@ module_logger = logging.getLogger(logger.name+'.analysis')
 
 wildcards = ["?", "*"]
 
+hovertemplate_psd_tlist="<br>".join([
+                        "Time: %{customdata}",
+                        "Frequency: %{x} Hz",
+                        "PSD: %{z}"
+                    ])
+hovertemplate_psd_trange="<br>".join([
+                        "Time: %{y}",
+                        "Frequency: %{x} Hz",
+                        "PSD: %{z}"
+                    ])
+
+
 
 class Analyzer(base.BaseProcessedData):
     """
@@ -431,38 +443,40 @@ class Analyzer(base.BaseProcessedData):
         else:
             fig = ax.get_figure()
 
-        if self.timerange:
-            tax = self.timeax_psd
-        else:
-            tax = np.arange(self.timeax_psd.size)
-            nticks = 10
-            dtick = tax.size // nticks
-            xticks = tax[::dtick]
-            xticklabels = self.timeax_psd[::dtick]
+        # if self.timerange:
+        #     tax = self.timeax_psd
+        # else:
+        #     tax = np.arange(self.timeax_psd.size)
+        #     nticks = 10
+        #     dtick = tax.size // nticks
+        #     xticks = tax[::dtick]
+        #     xticklabels = self.timeax_psd[::dtick]
 
 
-        if any(freqs):
-            freqs = list(freqs)
-            if not freqs[0]:
-                freqs[0] = 0
-            if not freqs[1]:
-                freqs[1] = self.frequency_axis[-1]+1
-            idx = np.where(np.logical_and(
-                                self.frequency_axis>=freqs[0],
-                                self.frequency_axis<=freqs[1]))[0]
-            fax = self.frequency_axis[idx]
-            Z = self.psds.T[idx, :]
-        else:
-            fax = self.frequency_axis
-            Z = self.psds.T
+        # if any(freqs):
+        #     freqs = list(freqs)
+        #     if not freqs[0]:
+        #         freqs[0] = 0
+        #     if not freqs[1]:
+        #         freqs[1] = self.frequency_axis[-1]+1
+        #     idx = np.where(np.logical_and(
+        #                         self.frequency_axis>=freqs[0],
+        #                         self.frequency_axis<=freqs[1]))[0]
+        #     fax = self.frequency_axis[idx]
+        #     Z = self.psds.T[idx, :]
+        # else:
+        #     fax = self.frequency_axis
+        #     Z = self.psds.T
 
-        if func:
-            Z = func(Z)
-            colorbarlabel = colorbarlabel
-        else:
-            Z = np.log10(Z*1e9**2)
-            colorbarlabel = r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$'
-        
+        # if func:
+        #     Z = func(Z)
+        #     colorbarlabel = colorbarlabel
+        # else:
+        #     Z = np.log10(Z*1e9**2)
+        #     colorbarlabel = r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$'
+        tax, fax, Z, xticks, xticklabels, colorbarlabel = self._prep_psds_for_plot(
+                                    freqs, func, colorbarlabel)
+
         if not "vmax" in kwargs:
             kwargs["vmax"] = 0.9*np.nanmax(Z)
         elif callable(kwargs["vmax"]):
@@ -470,7 +484,8 @@ class Analyzer(base.BaseProcessedData):
         else:
             kwargs["vmax"] = kwargs["vmax"]
         self.logger.debug("Kwargs passed to pcolormesh are {}".format(kwargs))
-        
+        self.logger.debug("max color is {}".format(kwargs["vmax"]))
+
         pmesh = ax.pcolormesh(tax, fax, Z, 
                             **kwargs)
 
@@ -532,7 +547,7 @@ class Analyzer(base.BaseProcessedData):
 
         
 
-    def plot3d_psds(self, func=None, zlabel=None):
+    def _plot3d_psds(self, func=None, zlabel=None):
         """
         
         Notes
@@ -550,7 +565,7 @@ class Analyzer(base.BaseProcessedData):
                 zlabel = "psd, {}m^2/s^2/Hz{}".format(*funcname)
         else:
             z = np.log10(self.psds*1e9**2)
-            zlabel = r"$\alpha \log_{10}\frac{nm^2}{s^2Hz}$"
+            zlabel = r"$\log_{10}\frac{nm^2}{s^2Hz}$"
       
         y = self.timeax_psd
         x = self.frequency_axis
@@ -573,16 +588,124 @@ class Analyzer(base.BaseProcessedData):
         return fig
 
 
-    def _plotly_3dsurface(self,x,y, z, name=None, cmin=None, cmax=None):
-        #sh_0, sh_1 = z.shape
-        #y, x = np.linspace(0, sh_0-1, sh_0), np.linspace(0, sh_1-1, sh_1)
+    def plot3d_psds(self, func=None, 
+            colorbarlabel="", freqs=(None, None),
+            log_freq_ax=False,
+            vmin=None, vmax=None):
+        """
+        
+        Notes
+        ----------
+        Latex rendering for me works in title but not on axis labels.
+        """
+
+        tax, fax, Z, tticks, tticklabels, colorbarlabel = self._prep_psds_for_plot(
+                                    freqs, func, colorbarlabel)
+
+        if not vmax:
+            vmax = 0.9*np.nanmax(Z)
+        elif callable(vmax):
+            vmax = vmax(Z)
+        else:
+            vmax = vmax
+        self.logger.debug("max color is {}".format(vmax))
+
+
+        if self.timerange:
+            kwargs = dict(hovertemplate=hovertemplate_psd_trange)
+        else:
+            timelabels_ = [t for t in self.timeax_psd]
+            timelabels = [timelabels_ for i in range(len(fax)) ]
+            kwargs = dict(customdata=timelabels,
+                    hovertemplate=hovertemplate_psd_tlist)
+            
+
+
+        fig = self._plotly_3dsurface(fax, tax, Z.T, name="psds", 
+                        cmin=vmin, cmax=vmax, **kwargs)
+
+        title = ("Hourly power spectral density<br>" + 
+           "{} - {}<br>".format(min(tax), max(tax))
+           )
+
+        fig.update_layout(title=title, 
+                        scene=dict(
+                            xaxis=dict(title='Frequency, Hz'),
+                            yaxis=dict(title='Datetime', 
+                                tickvals=tticks, ticktext=tticklabels),
+                            zaxis=dict(title=colorbarlabel
+                                        )
+                                )
+                            )
+
+        if log_freq_ax:
+            fig.update_xaxes(type="log")   
+        
+        self.logger.warn("Check size of HTML-figure! Your browser might crash!")
+
+        return fig
+
+
+
+    def _prep_psds_for_plot(self, freqs=(None,None), 
+                    func=None, colorbarlabel=None):
+
+        if self.timerange:
+            tax = self.timeax_psd
+            xticks = None
+            xticklabels = None
+        else:
+            tax = np.arange(self.timeax_psd.size)
+            nticks = 10
+            dtick = tax.size // nticks
+            xticks = tax[::dtick]
+            xticklabels = self.timeax_psd[::dtick]
+            xticklabels = [UTC(str(t)).strftime("%Y-%m-%dT%H:%M") 
+                            for t in  xticklabels]
+
+        if any(freqs):
+            freqs = list(freqs)
+            if not freqs[0]:
+                freqs[0] = 0
+            if not freqs[1]:
+                freqs[1] = self.frequency_axis[-1]+1
+            idx = np.where(np.logical_and(
+                                self.frequency_axis>=freqs[0],
+                                self.frequency_axis<=freqs[1]))[0]
+            fax = self.frequency_axis[idx]
+            Z = self.psds.T[idx, :]
+        else:
+            fax = self.frequency_axis
+            Z = self.psds.T
+
+        if func:
+            Z = func(Z)
+            if colorbarlabel is None:
+                try:
+                    funcname = func.__name__+"(", ")"
+                except AttributeError:
+                    funcname = "", ""
+                colorbarlabel = "psd, {}m^2/s^2/Hz{}".format(*funcname)
+            #colorbarlabel = colorbarlabel
+        else:
+            Z = np.log10(Z*1e9**2)
+            colorbarlabel = r'power spectral density, $\log_{10}(\frac{nm^2}{s^2\cdot Hz})$'
+        return tax, fax, Z, xticks, xticklabels, colorbarlabel
+
+
+
+    def _plotly_3dsurface(self,x,y, z, name=None, 
+                    cmin=None, cmax=None, **kwargs
+                    ):
+        
+        
         fig = go.Figure(data=[go.Surface(z=z, x=x, y=y, name=name, 
-                                            cmin=cmin, cmax=cmax)])
+                                            cmin=cmin, cmax=cmax,
+                                            **kwargs)])
         fig.update_layout(autosize=True,
                           width=800, height=500,
                           scene=dict(aspectmode='manual',
-                                     aspectratio=dict(x=1, y=2, z=0.5))
-                          #margin=dict(l=65, r=50, b=65, t=90)
+                                     aspectratio=dict(x=1, y=2, z=0.5)),
                          )
         #fig.show()
         return fig

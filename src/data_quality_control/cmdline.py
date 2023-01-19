@@ -130,7 +130,7 @@ def run_interpolator(args):
 
 def run_plot_spectrogram(args):
     """
-    Plot classic spectrogram
+    Plot classic and/or 3D interactive spectrogram.
     """
     figdir = args.figdir
     init_args = {k: args.__getattribute__(k) for k in 
@@ -164,11 +164,21 @@ def run_plot_spectrogram(args):
                         lyza.startdate.strftime(timefmt), 
                         lyza.enddate.strftime(timefmt))
     module_logger.debug("Figure name base: {}".format(figname))
-    fig_cont = lyza.plot_spectrogram(**plot_args)
-    fig_cont.savefig(figdir.joinpath("{}_spectrogram.png".format(figname)))
+
+    if args.which.lower() == "2d" or args.which == "both":
+        fig_cont = lyza.plot_spectrogram(**plot_args)
+        fig_cont.savefig(figdir.joinpath("{}_spectrogram.png".format(figname)))
     
+    if args.which.lower() == "3d" or args.which == "both":
+        fig_psd = lyza.plot3d_psds(**plot_args)
+        html = fig_psd.to_html()
+        with open(figdir.joinpath("{}_spectrogram.html".format(figname)), "w") as f:
+            f.write(html)
+
     if args.show:
+        fig_psd.show()
         show()
+
 
 
 def run_plot_spectrogram_3d(args):
@@ -432,6 +442,19 @@ def plot_spectrogram(subparsers):
         action="store_true",
         help="If given plot is opened as matplotlib figure.")
 
+    plot.add_argument("-w", "--which", type=str,
+            choices=["3d", "3D", "2D", "2d", "both"],
+            help="If '2D' only a classic spectrogram is plotted " +
+                "using matplotlib. Will create a png. " + 
+                "If '3D' only an interactive html-plot " +
+                "is created using plotly. The file can be opened "+
+                "in a browser. Careful! " + 
+                "Can result in enormous file size and might " + 
+                "slow down or even crash your browser" +
+                "If 'both' both type of plots are created. " + 
+                "Default is '2D'",
+                default="2d")
+    
     plot.add_argument("--fmin", type=float,
             help="Minimum frequency", default=None)
     plot.add_argument("--fmax", type=float,
@@ -442,6 +465,7 @@ def plot_spectrogram(subparsers):
             help="Minimum value of color scale", default=None)
     plot.add_argument("--vmax", type=float,
             help="Maximum value of color scale", default=None)
+
 
     group = plot.add_mutually_exclusive_group()
     group.add_argument("-l", "--timelist", type=argparse.FileType("r"), 
