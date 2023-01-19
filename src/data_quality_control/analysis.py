@@ -38,6 +38,12 @@ hovertemplate_psd_trange="<br>".join([
                         "Frequency: %{x} Hz",
                         "PSD: %{z}"
                     ])
+hovertemplate_amplitudes="<br>".join([
+                        "Date: %{y}",
+                        "Time: %{x}",
+                        "75%-Amplitude: %{z}"
+                    ])
+
 
 
 
@@ -509,7 +515,7 @@ class Analyzer(base.BaseProcessedData):
 
 
     def plot3d(self):
-        return self.plot3d_amplitudes(), self.plot3d_psds()
+        return self.plot3d_amplitudes(), self.plot3d_spectrogram()
 
 
     def plot3d_amplitudes(self, func=None):
@@ -533,8 +539,9 @@ class Analyzer(base.BaseProcessedData):
         char = str(timeax.dtype)[-2]
         timeax = np.array(timeax, dtype=np.datetime64(None, char))
         #print(xticks, timeax)
-        fig = self._plotly_3dsurface(timeax, dateax, z,
-                        name="amplitudes")
+        fig = self._plotly_3dsurface(timeax, dateax, z.T,
+                        name="amplitudes", 
+                        hovertemplate=hovertemplate_amplitudes)
         
         fig.update_layout(title=title,
             scene=dict(
@@ -547,48 +554,7 @@ class Analyzer(base.BaseProcessedData):
 
         
 
-    def _plot3d_psds(self, func=None, zlabel=None):
-        """
-        
-        Notes
-        ----------
-        Latex rendering for me works in title but not on axis labels.
-        """
-
-        if func:
-            z = func(self.psds)
-            if zlabel is None:
-                try:
-                    funcname = func.__name__+"(", ")"
-                except AttributeError:
-                    funcname = "", ""
-                zlabel = "psd, {}m^2/s^2/Hz{}".format(*funcname)
-        else:
-            z = np.log10(self.psds*1e9**2)
-            zlabel = r"$\log_{10}\frac{nm^2}{s^2Hz}$"
-      
-        y = self.timeax_psd
-        x = self.frequency_axis
-        fig = self._plotly_3dsurface(x, y, z, name="psds")
-
-        title = ("Hourly power spectral density<br>" + 
-           "{} - {}<br>".format(min(y), max(y))
-           )
-        #title = r'$\frac{\alpha^2}{\beta}$'
-
-        fig.update_layout(title=title, 
-                        scene=dict(
-                            xaxis=dict(title='Frequency, Hz'),
-                            yaxis=dict(title='Datetime'),
-                            zaxis=dict(title=zlabel#"psd, {}m^2/s^2/Hz{}".format(*funcname)
-                                        )
-                                )
-                            )
-           
-        return fig
-
-
-    def plot3d_psds(self, func=None, 
+    def plot3d_spectrogram(self, func=None, 
             colorbarlabel="", freqs=(None, None),
             log_freq_ax=False,
             vmin=None, vmax=None):
@@ -620,7 +586,6 @@ class Analyzer(base.BaseProcessedData):
                     hovertemplate=hovertemplate_psd_tlist)
             
 
-
         fig = self._plotly_3dsurface(fax, tax, Z.T, name="psds", 
                         cmin=vmin, cmax=vmax, **kwargs)
 
@@ -641,7 +606,8 @@ class Analyzer(base.BaseProcessedData):
         if log_freq_ax:
             fig.update_xaxes(type="log")   
         
-        self.logger.warn("Check size of HTML-figure! Your browser might crash!")
+        self.logger.warn("Check size of HTML-figure! " + 
+                        "Your browser might crash!")
 
         return fig
 

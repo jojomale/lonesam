@@ -1267,6 +1267,8 @@ class BaseProcessedData():
         """
         if ax is None:
             fig, ax = plt.subplots(1,1)
+        else:
+            fig = ax.get_figure()
 
         
         #self.fill_days()
@@ -1289,7 +1291,7 @@ class BaseProcessedData():
         ax.set_yticklabels(timeax);
         plt.colorbar(im, ax=ax)
         fig.autofmt_xdate()
-        return ax
+        return fig
 
 
     def _get_psd_datetimeax(self):

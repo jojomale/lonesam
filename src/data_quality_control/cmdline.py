@@ -170,28 +170,65 @@ def run_plot_spectrogram(args):
         fig_cont.savefig(figdir.joinpath("{}_spectrogram.png".format(figname)))
     
     if args.which.lower() == "3d" or args.which == "both":
-        fig_psd = lyza.plot3d_psds(**plot_args)
+        fig_psd = lyza.plot3d_spectrogram(**plot_args)
         html = fig_psd.to_html()
         with open(figdir.joinpath("{}_spectrogram.html".format(figname)), "w") as f:
             f.write(html)
-
+        if args.show:
+            fig_psd.show()
+            
     if args.show:
-        fig_psd.show()
         show()
 
 
-
-def run_plot_spectrogram_3d(args):
-    pass
-
-
 def run_plot_amplitudes(args):
-    pass
+    """
+    Create amplitude plots from cli-arguments.
 
+    Parameters
+    -----------
+    args : argparse.Namespace
+        parsed cli arguments
+    """
 
-def run_plot_amplitudes_3d(args):
-    pass
+    figdir = args.figdir
+    init_args = {k: args.__getattribute__(k) for k in 
+                ["datadir", "nslc_code", "fileunit"]}
+    
+    lyza = analysis.Analyzer(**init_args)
+    dqclogging.configure_handlers(args.loglevel, 
+                args.loglevel, args.logfile, args.append_logfile )
 
+    if args.timerange:
+        print("timerange")
+        starttime, endtime = args.timerange #args_dict.pop("timerange")
+    else:
+        print("Using full available timerange")
+        starttime, endtime = lyza.get_available_timerange()
+
+    DATA = lyza.get_data(starttime, endtime)
+    module_logger.debug("DATA contains {}".format(DATA))
+
+    figname = "{}_{}-{}".format(lyza.stationcode, 
+                        lyza.startdate.strftime(timefmt), 
+                        lyza.enddate.strftime(timefmt))
+    module_logger.debug("Figure name base: {}".format(figname))
+
+    if args.which.lower() == "2d" or args.which == "both":
+        fig_mpl = lyza.plot_amplitudes()
+        fig_mpl.savefig(figdir.joinpath("{}_amplitudes.png".format(figname)))
+    
+    if args.which.lower() == "3d" or args.which == "both":
+        fig_plotly = lyza.plot3d_amplitudes()
+        html = fig_plotly.to_html()
+        with open(figdir.joinpath(
+            "{}_amplitudes.html".format(figname)), "w") as f:
+            f.write(html)
+        if args.show:
+            fig_plotly.show()
+
+    if args.show:
+        show()
 
 
 
@@ -477,25 +514,59 @@ def plot_spectrogram(subparsers):
     group.add_argument("-r", "--timerange", type=UTC, nargs=2,
             help=("Start and end of time range you want to plot. "+ 
                 "Give as YYYY-MM-DDThh:mm:ss, " + 
-                "endtime can be None to use current time."),
+                "endtime can be None to use current time. "+ 
+                "If not set, whole available time range is used."),
                     )
 
-@subcommand
-def plot_spectrogram_3d(subparsers):
-    pass
-   
+
 @subcommand
 def plot_amplitudes(subparsers):
-    pass
+    plot = subparsers.add_parser("plot_amplitudes",
+        parents=[commons_parser],
+        description="Plot amplitudes in matrix as "+
+            " time of day vs date." + 
+            " as 2D or interactive 3D figure. ",
+        aliases=["plot-amplitudes"]
+        )
+    plot.set_defaults(func=run_plot_amplitudes)
+    plot.add_argument("nslc_code", type=str, 
+            help=("station code {network}.{station}.{location}.{channel}," +
+                "May *not* contain wildcards here!"))
+    plot.add_argument("datadir", type=Path, 
+            help="where to look for processed data",
+            default=".")
+    
+    plot.add_argument("--fileunit", type=str, 
+            choices=fileunits,
+            help="Time span per HDF5-file. ",
+            default="year")
+    plot.add_argument("-o", "--figdir", type=Path,
+            help="Where to store figures.",
+            default=".")
+    plot.add_argument("-s", "--show",
+        action="store_true",
+        help="If given plot is opened. Opens matplotlib figure " + 
+            "and/or plotly graph in browser")
 
-@subcommand
-def plot_amplitudes_3d(subparsers):
-    pass
-
-@subcommand
-def interpolate(subparsers):
-    pass
-
+    plot.add_argument("-w", "--which", type=str,
+            choices=["3d", "3D", "2D", "2d", "both"],
+            help="If '2D' a matrix view is created " +
+                "using matplotlib. Will create a png. " + 
+                "If '3D' only an interactive html-plot " +
+                "is created using plotly. The file can be opened "+
+                "in a browser. Careful! " + 
+                "Can result in enormous file size and might " + 
+                "slow down or even crash your browser" +
+                "If 'both' both type of plots are created. " + 
+                "Default is '2D'",
+                default="2d")
+        
+    plot.add_argument("-r", "--timerange", type=UTC, nargs=2,
+            help=("Start and end of time range you want to plot. "+ 
+                "Give as YYYY-MM-DDThh:mm:ss, " + 
+                "endtime can be None to use current time. "+ 
+                "If not set, whole available time range is used."),
+                    )
 
 
 
