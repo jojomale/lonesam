@@ -710,14 +710,14 @@ class Analyzer(base.BaseProcessedData):
 
 
 
-class Interpolator(Analyzer):
+class MedianSmoother(Analyzer):
     """
-    Manage interpolation/data reduction of processed amplitudes 
+    Manage smoothing/data reduction of processed amplitudes 
     and PSDs. 
     
     Grandparent is :py:class:`BaseProcessedData`.
 
-    The main routine to call is :py:meth:`.interpolate`. 
+    The main routine to call is :py:meth:`.smooth`. 
     The other methods are mostly helpers to perform the
     smoothing/downsampling, organize the iteration
     over the data base and manage IO-operations. They can
@@ -750,7 +750,7 @@ class Interpolator(Analyzer):
 
         nslc_code = "GR.BFO..BHZ"
         datadir = "output/"
-        outdir = "output/interpolated/"
+        outdir = "output/smoothd/"
         kernel_size = 6
         kernel_shift = 3
 
@@ -759,13 +759,13 @@ class Interpolator(Analyzer):
                                     loglevel_file=None)
 
         # Interpolation
-        ## Initiate interpolator
-        polly = analysis.Interpolator(datadir, nslc_code, 
+        ## Initiate smoother
+        polly = analysis.MedianSmoother(datadir, nslc_code, 
                                     kernel_size=kernel_size, 
                                     kernel_shift=kernel_shift)
 
         ## Start interpolation over whole available time range
-        polly.interpolate(outdir, force_new_file=True)
+        polly.smooth(outdir, force_new_file=True)
 
         # View results
         lyza = analysis.Analyzer(datadir, nslc_code,
@@ -816,7 +816,7 @@ class Interpolator(Analyzer):
                 kernel_shift=None):
         super().__init__(datadir, nslc_code, fileunit)
         self.logger = logging.getLogger(module_logger.name+
-                            '.'+"Interpolator")
+                            '.'+"MedianSmoother")
         self.logger.setLevel(logging.DEBUG)
         self.kernel_size = None
         self.kernel_shift = None
@@ -879,7 +879,7 @@ class Interpolator(Analyzer):
 
             nslc_code = "GR.BFO..BHZ"
             datadir = "output/"
-            polly = analysis.Interpolator(datadir, nslc_code)                             
+            polly = analysis.MedianSmoother(datadir, nslc_code)                             
             polly._get_WINLEN_SECONDS(*polly.get_available_timerange())
             print("Winlen in processed data", polly.WINLEN_SECONDS)
         
@@ -912,7 +912,7 @@ class Interpolator(Analyzer):
             
     def _check_framed_shape(self, x, X, label=""):
         """
-        Used in :py:meth:`._interpolate` to check if all data
+        Used in :py:meth:`._medianfilter` to check if all data
         went into frames. 
 
         Parameters
@@ -939,12 +939,12 @@ class Interpolator(Analyzer):
             "{:d} of {} timeseries remain".format(x.size-ns, label)
     
     
-    def _interpolate(self):
+    def _medianfilter(self):
         """
         Transform timeseries data into frames and apply
         median operation.
         """
-        self.logger.debug("Running self._interpolate()")
+        self.logger.debug("Running self._medianfilter()")
         x = self.amplitudes
         X = util.get_overlapping_frames(x, 
                                     self.kernel_size, self.kernel_shift)
@@ -975,7 +975,7 @@ class Interpolator(Analyzer):
         :py:meth:`data_quality_control.analysis.Analyzer.iter_time` 
         which adjusts the yielded start and endtimes by 
         ``kernel_shift``, ``kernel_size`` and ``WINLEN_SECONDS`` to
-        accommodate all data to interpolate over the entire ``fileunit``.
+        accommodate all data to smooth over the entire ``fileunit``.
 
 
         Yields
@@ -1050,7 +1050,7 @@ class Interpolator(Analyzer):
         return starttime, endtime
 
 
-    def interpolate(self, outdir=".",
+    def smooth(self, outdir=".",
             starttime=None, endtime=None,
             kernel_size=None, kernel_shift=None, 
             force_new_file=False):
@@ -1081,7 +1081,7 @@ class Interpolator(Analyzer):
             If ``True`` overwrites existing output data.
         """
         
-        self.logger.info("\n\nStarting interpolate()")
+        self.logger.info("\n\nStarting smooth()")
 
         if Path(outdir) == Path(self.datadir):
             msg = ("datadir is same as outdir. " +
@@ -1110,7 +1110,7 @@ class Interpolator(Analyzer):
             self.trim(tsta, tend, fill_value=np.nan)
             self._set_check_WINLEN_SECONDS()
             
-            amplitudes_, psds_ = self._interpolate()
+            amplitudes_, psds_ = self._medianfilter()
             self.set_data(amplitudes_, psds_, self.frequency_axis)
             #print(tsta, tend, tend+(kernel_shift-kernel_size)*self.WINLEN_SECONDS)
             self.logger.info("Setting time for output:")
