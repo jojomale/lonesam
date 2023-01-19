@@ -24,4 +24,4 @@ dataqc process -o $outdir \
  $startdate $enddate \
     --loglevel $loglevel \
  --logfile $logfilename \
- --sampling_rate $sampling_rate
+ --sampling-rate $sampling_rate

@@ -176,7 +176,7 @@ def run_plot_spectrogram(args):
             f.write(html)
         if args.show:
             fig_psd.show()
-            
+
     if args.show:
         show()
 
@@ -227,55 +227,6 @@ def run_plot_amplitudes(args):
         if args.show:
             fig_plotly.show()
 
-    if args.show:
-        show()
-
-
-
-def run_plot(args):
-    """
-    Create spectrograms and plotly-figures from cli-arguments.
-
-    Parameters
-    -----------
-    args : argparse.Namespace
-        parsed cli arguments
-    """
-
-    figdir = args.figdir
-    init_args = {k: args.__getattribute__(k) for k in ["datadir", "nslc_code", "fileunit"]}
-    
-    lyza = analysis.Analyzer(**init_args)
-    dqclogging.configure_handlers(args.loglevel, 
-                args.loglevel, args.logfile, args.append_logfile )
-
-    if args.timerange:
-        print("timerange")
-        starttime, endtime = args.timerange #args_dict.pop("timerange")
-    elif args.timelist:
-        print("timelist")
-        starttime = read_file_as_list_of_utcdatetimes(args.timelist)
-        endtime = None
-        print(starttime.__class__)
-    else:
-        print("Using full available timerange")
-        starttime, endtime = lyza.get_available_timerange()
-
-    DATA = lyza.get_data(starttime, endtime)
-    module_logger.debug("DATA contains {}".format(DATA))
-
-    figname = "{}_{}-{}".format(lyza.stationcode, 
-                        lyza.startdate.strftime(), 
-                        lyza.enddate.datetime)
-    module_logger.debug("Figure name base: {}".format(figname))
-    fig_cont = lyza.plot_spectrogram()
-    fig_cont.savefig(figdir.joinpath("{}_spectrogram.png".format(figname)))
-    fig_amp, fig_psd = lyza.plot3d()
-    for flabel, fig in zip(["amp", "psd"], [fig_amp, fig_psd]):
-        html = fig.to_html(include_mathjax="cdn")
-        with open(figdir.joinpath(
-                "{}_3d_{}.html".format(figname, flabel)), "w") as f:
-            f.write(html)
     if args.show:
         show()
 
@@ -442,11 +393,13 @@ def process(subparsers):
             help="length of segment for spectral estimation "+
             "(scipy.signal.welch), in samples ",
             default=base.default_processing_params["nperseg"])
-    process.add_argument("--amplitude-frequencies", type=float, nargs=2,
+    process.add_argument("--amplitude-frequencies", "--amplitude_frequencies",
+            type=float, nargs=2,
             help="min and max frequency of bandpass before "+
             "amplitude analysis.",
             default=base.default_processing_params["amplitude_frequencies"] )
-    process.add_argument("--sampling_rate", "--sr", type=float,
+    process.add_argument("--sampling_rate", "--sr", "--sampling-rate", 
+            type=float,
             help="Sampling rate at which data are processed. "+
             "Data are resampled if original SR is different.",
             default=base.default_processing_params["sampling_rate"] )
@@ -568,52 +521,6 @@ def plot_amplitudes(subparsers):
                 "If not set, whole available time range is used."),
                     )
 
-
-
-@subcommand
-def plot(subparsers):
-    plot = subparsers.add_parser("plot",
-        parents=[commons_parser],
-        description="Make 3 different figures of amplitudes and " + 
-        "power spectral densities. "+
-        "Plotly is used to create interactive 3D-views of amplitudes " +
-        "and PSDs with time. They are saved as html-files and can be " +
-        "viewed in a browser. " +
-        "PSDs are also plotted as classic spectrogram, saved as png and " +
-        "optionally shown as interactive matplotlib figure. "
-        )
-    plot.set_defaults(func=run_plot)
-    plot.add_argument("nslc_code", type=str, 
-            help=("station code {network}.{station}.{location}.{channel}," +
-                "May *not* contain wildcards here!"))
-    plot.add_argument("datadir", type=Path, 
-            help="where to look for processed data",
-            default=".")
-    
-    plot.add_argument("--fileunit", type=str, 
-            choices=fileunits,
-            help="Time span per HDF5-file. ",
-            default="year")
-    plot.add_argument("-o", "--figdir", type=Path,
-            help="Where to store figures.",
-            default=".")
-    plot.add_argument("-s", "--show",
-        action="store_true",
-        help="If given spectrogram plot is opened as matplotlib figure.")
-
-    group = plot.add_mutually_exclusive_group()
-    group.add_argument("-l", "--timelist", type=argparse.FileType("r"), 
-            help=("Plot spectrograms using time list." + 
-                    "Can be used as flag to read times from stdin or" + 
-                    "given a file with datetimes."),
-            nargs="?",
-            const=sys.stdin)
-    group.add_argument("-r", "--timerange", type=UTC, nargs=2,
-            help=("Start and end of time range you want to plot. "+ 
-                "Give as YYYY-MM-DDThh:mm:ss, " + 
-                "endtime can be None to use current time."),
-                    )
-    
 
 @subcommand
 def avail(subparsers):
