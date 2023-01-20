@@ -285,7 +285,7 @@ class GenericProcessor():
         self.endtime = UTC(endtime)
 
         ofilemanager = ProcessedDataFileManager(self.outdir, 
-                                self.proc_params.nperseg,
+                                nperseg=self.proc_params.nperseg,
                                 fileunit=self.fileunit)
         for _starttime, _endtime in self.iter_time(starttime, endtime):
             self.logger.debug("processing {} - {}".format(_starttime, _endtime))
@@ -1410,7 +1410,7 @@ class BaseProcessedData():
 
 class ProcessedDataFileManager():
     
-    def __init__(self, outdir, nperseg, 
+    def __init__(self, outdir, nperseg=None, 
             processeddata=None, fileunit="year") -> None:
         
         self.logger = logging.getLogger(module_logger.name+
@@ -1457,6 +1457,9 @@ class ProcessedDataFileManager():
             self._startdate = forced_startdate
         else:
             self._startdate = self.data.startdate
+
+        if not self.nperseg:
+            self.nperseg = (self.data.frequency_axis.size -1)*2
 
         self.logger.debug("Starttime of file: {}".format(self._startdate))
         #print("Data", self.data)
