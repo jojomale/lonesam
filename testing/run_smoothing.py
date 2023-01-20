@@ -36,13 +36,13 @@ def main():
 
     # Interpolation
     ## Initiate interpolator
-    polly = analysis.Interpolator(datadir, nslc_code, 
+    polly = analysis.SmoothOperator(datadir, nslc_code, 
                                 kernel_size=kernel_size, 
                                 kernel_shift=kernel_shift)
 
 
     ## Start interpolation over whole available time range
-    polly.interpolate(outdir, force_new_file=True)
+    polly.smooth(outdir, force_new_file=True)
 
 
     fig, axs = plt.subplots(2,1, figsize=(8, 10))

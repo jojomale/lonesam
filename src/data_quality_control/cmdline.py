@@ -600,26 +600,31 @@ def windfilter(subparsers):
 def smooth(subparsers):
     smooth = subparsers.add_parser("smooth",
         parents=[commons_parser],
-        description="Smooth / Downsample processed data."
+        description="Smooth / Downsample processed data." +
+            "Use e.g. before plotting very long time ranges "+
+            "to reduce the amount of data."
         )
     smooth.set_defaults(func=run_smoothing)
     smooth.add_argument("nslc_code", type=str, 
             help=("station code {network}.{station}.{location}.{channel}," +
                 "May *not* contain wildcards here!"))
     smooth.add_argument("datadir", type=Path, 
-            help="Data source. Where to look for the data which you want to smooth",
+            help="Data source. Where to look for the data "+
+                "which you want to smooth",
             default=".")
     smooth.add_argument("outdir", type=Path,
             help="Where to store the smoothed results.",
             default=".")
     smooth.add_argument("kernel_size", type=int,
             help="Number of samples over which median is computed." + 
-                "1 sample covers `proclen` seconds in the original " +
-                "seismic data. ",
+                "1 sample covers `proclen` seconds in the "+
+                "original seismic data. Default = 3 ",
             default=3)
     smooth.add_argument("kernel_shift", type=int,
-            help="Number of samples by which the smooth.",
-            default=".")    
+            help="Number of samples by which the kernel is "+
+                "shifted. Values > 1 lead to downsampling. " +
+                "Default = 1",
+            default=1)    
 
     smooth.add_argument("--fileunit", type=str, 
             choices=fileunits,
