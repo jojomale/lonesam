@@ -285,6 +285,7 @@ class GenericProcessor():
         self.endtime = UTC(endtime)
 
         ofilemanager = ProcessedDataFileManager(self.outdir, 
+                                self.proc_params.nperseg,
                                 fileunit=self.fileunit)
         for _starttime, _endtime in self.iter_time(starttime, endtime):
             self.logger.debug("processing {} - {}".format(_starttime, _endtime))
@@ -303,7 +304,7 @@ class GenericProcessor():
                 output.trim_nan()
                 self.logger.debug("output time range: {} - {}".format(output.startdate, output.enddate))
                 
-                ofilemanager.set_data(output)
+                ofilemanager.set_data(output, _starttime)
                 ofilemanager.write_data(force_new_file)
 
         walltime = timedelta(seconds=time.time()-T0)
@@ -572,13 +573,17 @@ class NSCProcessor():
         
         AMP = np.array(AMP)
         AMP = AMP.ravel()
-        PXX = np.array(PXX)
-        PXX = PXX.reshape((-1, PXX.shape[-1]))
+        #self.logger.debug("len(AMP) = {:g}".format(len(AMP)))
+        
 
         if len(AMP) > 0:
+            PXX = np.array(PXX)
+            PXX = PXX.reshape((-1, PXX.shape[-1]))
             output.set_data(np.array(AMP),
-                            np.array(PXX),
+                            PXX,
                             np.array(frequency_axis))
+        else:
+            print("Data in output", output.has_data())
         return output
 
 
@@ -1405,7 +1410,8 @@ class BaseProcessedData():
 
 class ProcessedDataFileManager():
     
-    def __init__(self, outdir,  processeddata=None, fileunit="year") -> None:
+    def __init__(self, outdir, nperseg, 
+            processeddata=None, fileunit="year") -> None:
         
         self.logger = logging.getLogger(module_logger.name+
         #                    "."+self.__name__)
@@ -1414,6 +1420,7 @@ class ProcessedDataFileManager():
 
         self.outdir = outdir
         self.fileunit = fileunit
+        self.nperseg = nperseg
         if processeddata:
             self.set_data(processeddata)
         self.logger.info(
@@ -1435,17 +1442,24 @@ class ProcessedDataFileManager():
     def ofilename(self):
         ofilename = self.fname_fmt.format(
                     outdir=self.outdir,
-                year=self.data.startdate.year, 
-                month=self.data.startdate.month, 
-                day=self.data.startdate.day,
-                hour=self.data.startdate.hour,
+                year=self._startdate.year, 
+                month=self._startdate.month, 
+                day=self._startdate.day,
+                hour=self._startdate.hour,
                 **self.nsc_as_dict()
                 )
         return ofilename
 
     @decorator_assert_integer_quotient_of_wins_per_fileunit
-    def set_data(self, processeddata):
+    def set_data(self, processeddata, forced_startdate=None):
         self.data = processeddata
+        if forced_startdate:
+            self._startdate = forced_startdate
+        else:
+            self._startdate = self.data.startdate
+
+        self.logger.debug("Starttime of file: {}".format(self._startdate))
+        #print("Data", self.data)
 
 
     def nsc_as_dict(self):
@@ -1462,7 +1476,10 @@ class ProcessedDataFileManager():
         """
         Create output file.
         """
-
+        # if not self.data.has_data():
+        #     self.logger.warning("No data for file %s. Skipping" % self.ofilename)
+        #     print(self.data)
+        #     return
         if force_fileunit:
             fstime, fetime = self.allocate_file_start_end() 
         else:
@@ -1479,7 +1496,8 @@ class ProcessedDataFileManager():
         f.create_dataset("amplitudes", 
                 shape=(n_windows,), 
                             fillvalue=np.nan)
-        nfreqs = self.data.frequency_axis.size
+        #nfreqs = self.data.frequency_axis.size
+        nfreqs = self.nperseg // 2 + 1
         f.create_dataset("psds", 
                         shape=(n_windows, nfreqs), 
                             fillvalue=np.nan)
@@ -1541,7 +1559,8 @@ class ProcessedDataFileManager():
             ``etime = 2021-04-30``
 
         """
-        starttime = self.data.startdate
+        starttime = self._startdate
+        #print(starttime)
         if self.fileunit == "year":
             stime = UTC(starttime.year, 1,1,0,0,0)
             etime = (UTC(starttime.year, 12, 31, 0,0,0) + 
@@ -1565,8 +1584,12 @@ class ProcessedDataFileManager():
 
 
     def write_data(self, force_new_file=False, force_fileunit=True):
+        # if not self.data.has_data():
+        #     self.logger.warning("No data for file %s. Skipping" % self.ofilename)
+        #     return
+
         fout = self.get_ofile(force_new_file, force_fileunit)
-            
+        print(fout)
         with fout:
             try:
                 self.data.insert_in_file(fout)
