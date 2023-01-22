@@ -20,6 +20,7 @@ sample_output/*
 cmdline_old.py
 eida_cmdline.py
 notebooks/johannas_chaos/*
+Readme_private.md
 
 
 __pycache__

@@ -89,6 +89,39 @@ you may want to install the
 dependencies first, 
 activate your environments, etc.
 
+To install dataqc from BGR's SVN-server:
+
+    ```bash
+    $ pip install svn+svn://svn.hannover.bgr.de/station_quality_control/trunk/data_quality_control#egg=dataqc
+    ```
+
+This can take some time because the repo is 
+quite large. If you only want the package, 
+you can download an archived version:
+
+ ```bash 
+  # Make directory for source archive
+  mkdir dataqc
+  cd dataqc
+  
+  # Download package as archive
+  svn export svn://svn.hannover.bgr.de/station_quality_control/trunk/data_quality_control/dist/dataqc-1.0.0.tar.gz
+
+  # Install 
+  pip install dataqc-1.0.0.tar.gz
+  ```
+
+
+To obtain the repo including all sample data,
+scripts and tests use:
+
+  ```bash
+    $ mkdir my_repos
+    $ cd my_repos
+    $ svn checkout svn://svn.hannover.bgr.de/station_quality_control/trunk/data_quality_control#egg=dataqc
+    $ cd station_quality_control/trunk/data_quality_control
+  ```
+
 Then use either for simple installation:
   
   ```bash 
@@ -110,6 +143,10 @@ conda including download of repo:
   pip obspy ipykernel h5py>=3.3 plotly
   conda activate dataqc
 
+  mkdir my_svn_repos
+  cd my_svn_repos
+  svn checkout svn://svn.hannover.bgr.de/station_quality_control 
+  cd station_quality_control/trunk/data_quality_control
   pip install -e . 
   ```
 
@@ -117,9 +154,10 @@ conda including download of repo:
 
 Documentation
 =================
-To view the HTML-Documentation open thiS file  in a browser:
+To view the HTML-Documentation open thi file 
+(in SVN-repository) in a browser:
 
-data_quality_control/docs/build/html/index.html
+station_quality_control/trunk/data_quality_control/docs/build/html/index.html
 
 
 
