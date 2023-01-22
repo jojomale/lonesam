@@ -18,7 +18,7 @@ sample_output/*
 *.hdf5
 cmdline_old.py
 eida_cmdline.py
-johannas_chaos/*
+notebooks/johannas_chaos/*
 
 
 __pycache__
