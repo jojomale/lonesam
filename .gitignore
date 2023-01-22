@@ -14,9 +14,11 @@ docs/html/.doctrees/*
 docs/html/objects.inv
 docs/html/searchindex.js
 sample_sds/*
+sample_output/*
 *.hdf5
 cmdline_old.py
 eida_cmdline.py
+johannas_chaos/*
 
 
 __pycache__
