@@ -66,6 +66,10 @@ In our case, we used ``nperseg=2048``, which results in
 ``(366, 24, 1025)``.
 
 
+Documentation
+====================
+https://lonesam.readthedocs.io/en/latest/index.html
+
 
 
 Installation
