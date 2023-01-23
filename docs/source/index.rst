@@ -12,6 +12,7 @@ Welcome to dataqc's documentation!
 
    modules
    cmdline
+   usage_demo
    
 
 
