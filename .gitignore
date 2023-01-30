@@ -13,7 +13,6 @@ gitsvn.sh
 docs/html/.doctrees/*
 docs/html/objects.inv
 docs/html/searchindex.js
-sample_sds/20*
 sample_output/*
 *.hdf5
 *.xml
