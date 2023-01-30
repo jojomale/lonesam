@@ -82,4 +82,5 @@ napoleon_include_private_with_doc = True
 #                  'https://cdn.plot.ly/plotly-latest.min.js']
 
 nbsphinx_requirejs_path = 'https://cdn.plot.ly/plotly-latest.min.js'
-# nbsphinx_execute = 'never'
+# nbsphinx_execute = 'always'
+# nbsphinx_kernel_name = 'python3'
