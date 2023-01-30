@@ -16,8 +16,6 @@ Welcome to dataqc's documentation!
    
 
 
-
-
 Indices and tables
 ==================
 
