@@ -1,3 +1,9 @@
+
+# Log files
+pip-log.txt
+pip-delete-this-directory.txt
+*.log
+
 # Project-related files
 docs/build/html/
 docs/build/html/*
@@ -15,7 +21,7 @@ gitsvn.sh
 docs/html/.doctrees/*
 docs/html/objects.inv
 docs/html/searchindex.js
-sample_output/*
+sample_output/scripts/
 *.hdf5
 *.xml
 cmdline_old.py
@@ -47,10 +53,6 @@ wheels/
 *.manifest 
 *.spec 
 
-# Log files
-pip-log.txt
-pip-delete-this-directory.txt
-*.log
 
 # Unit test / coverage reports 
 htmlcov/ 
