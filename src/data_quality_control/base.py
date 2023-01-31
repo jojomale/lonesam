@@ -1302,7 +1302,7 @@ class BaseProcessedData():
     def _get_psd_datetimeax(self):
         dtflag, dtinc = util.choose_datetime_inc(self.winlen_seconds)
         tax = np.arange(self.startdate, 
-                        self.enddate+self.winlen_seconds,
+                        self.enddate,
                         dtinc,
                     dtype='datetime64[{}]'.format(dtflag))
         return tax
