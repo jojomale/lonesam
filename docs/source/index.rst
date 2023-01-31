@@ -12,10 +12,11 @@ Welcome to dataqc's documentation!
 
    modules
    cmdline
-   usage_demo
-   missing_file_handling
-   data_gap_handling
-   read_winddata
+   01_usage_demo
+   02_read_winddata
+   03_missing_file_handling
+   04_data_gap_handling
+   
 
 
 
