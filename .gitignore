@@ -3,6 +3,8 @@ docs/build/html/
 docs/build/html/*
 docs/build/html/.*
 docs/build
+docs/sample*
+docs/testing/*
 jupyter/
 *Untitled*.ipynb
 testing/output
