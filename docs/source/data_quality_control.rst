@@ -17,3 +17,5 @@ Submodules
    data_quality_control.cmdline
    data_quality_control.sds_db
    data_quality_control.util
+   data_quality_control.timelist
+   data_quality_control.dqclogging
