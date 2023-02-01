@@ -152,33 +152,26 @@ These three intervals determine the shape of the resulting
 data arrays.
 
 ### Amplitude
-
 The amplitude information yields 1 data point per time window.
-For 1 processing length, this results in a 1d-array with length
-= ``n_winlen``, thus the number of time windows per processing
-length.
+Hence the resulting array is a 1d-array of shape (N,), N being
+the total number of time windows in the data range.
 
-In the output file, data from each processing length are stacked
-vertically, resulting in a **2d-array** with 
-shape (``n_proclen``, ``n_winlen``). ``n_proclen`` is the number
-of processed time ranges per period covered in 1 file.
-
-For example, with our values of ``winlen_seconds = 3600``,
-``proclen_seconds = 24*3600`` and ``fileunit="year"``, we
-get an amplitude arrays with shape ``(365, 24)`` or ``(366, 24)``
+For example, with our values of ``winlen_seconds = 3600`` and 
+``fileunit="year"``, we
+get an amplitude array with shape ``(365*24,)`` or ``(366*24,)``
 for leap years.
 
 ### PSD
-
 In contrast to the amplitude, the PSD results already in a 1d-array.
 Its length is determined by the settings for the FFT 
 (parameter ``nperseg``), i.e. the number of frequencies (``n_freqs``).
-Hence, the output of the PSD-computation has 1 additional dimension.
-So per processing length, shape is ``(n_winlen, n_freqs)`` and per
-file unit, shape is ``(n_proclen``, ``n_winlen, n_freqs)``.
+``n_freqs = nperseg // 2 + 1``.
+Hence, the output of the PSD-computation has 1 additional dimension, 
+thus ``(n_wins, n_freqs)``.
 
 In our case, we used ``nperseg=2048``, which results in 
 ``n_freqs=1025``, so the shapes are per processing length 
-``(24, 1025)`` and per file unit ``(365, 24, 1025)`` or 
-``(366, 24, 1025)``.
+``(24, 1025)`` and per file unit ``'year'`` are ``(365*24, 1025)`` or 
+``(366*24, 1025)``.
+
 
