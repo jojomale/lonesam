@@ -1,13 +1,19 @@
 """
-Compute and view longterm spectrograms and 
+A Python Package to compute and view longterm spectrograms and 
 amplitude levels of seismic data.
 
+The package is build from established Python libraries like obspy, 
+scipy and h5py. Matplotlib and plotly are used for data visualization. 
+The core functionalities are accessible via command line 
+interface while the underlying API allows for more customized workflows.
 
 Purpose
 ===============
-This package provides routines and workflows zu extract
-amplitude and spectral information from seismic data
-on a regular basis for quality control.
+Continuous monitoring of data quality is a major issue in 
+seismology because the achievement of robust scientific results 
+depends on the reliability of the underlying data resources.
+This package provides means to perform a systematic analysis of 
+noise data in the time and frequency domain.
 
 Two pieces of information are computed:
 
@@ -16,9 +22,26 @@ Two pieces of information are computed:
 - the power spectral density (PSD), computed by Welch's method
   over the same time window
 
+The tool is designed to process large amounts of channels 
+and years of data.
 Raw seismic data are fed into the workflow via obspy-clients.
 The processed data are stored in HDF5-Files, 1 file covering
-a selected period, e.g. 1 year.
+a selected period, e.g. 1 year. Depending on the size of the 
+data set, this processing takes minutes to hours. The results 
+are stored in rapidly accessible HDF5-files.
+They can be visualized using color-coded matrix displays (spectrograms) 
+and interactive 3D-figures. The resulting figures give insight 
+to characteristic noise patterns at the station and possible 
+noise sources, like various forms of anthropogenic noise or 
+wind generated noise. Furthermore, changes in noise levels 
+or noise patterns are easily detectable.
+Furthermore, the processed data can easily be restricted to 
+selected times, e.g. to investigate the influence of day/night 
+cycles or to obtain wind-speed dependent spectrograms.
+
+Using a median filter, the spectral and amplitude data can be 
+smoothed and/or downsampled. This is especially useful and 
+recommended when plotting extremly long time series.
 
 
 
