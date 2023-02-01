@@ -107,6 +107,7 @@ https://lonesam.readthedocs.io/en/latest/index.html
 
 In order to re-create the documentation from the repository
 you need:
+
 - `sphinx <https://www.sphinx-doc.org>`_
 - `nbsphinx </https://nbsphinx.readthedocs.io>`_
 - `nbsphinx-link <https://nbsphinx-link.readthedocs.io>`_
