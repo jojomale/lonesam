@@ -51,10 +51,9 @@ After successful installation the command `dataqc` should be available.
 
 To install dataqc from GitHub:
 
-.. code-block:: console 
-
+```bash
   $ pip install git+https://github.com/jojomale/lonesam.git
-
+```
 
 Editable installation with 
 conda including download of repo:

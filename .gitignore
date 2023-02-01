@@ -16,18 +16,14 @@ jupyter/
 testing/output
 testing/figures
 testing/log
-run_eida*
-gitsvn.sh
 docs/html/.doctrees/*
 docs/html/objects.inv
 docs/html/searchindex.js
 sample_output/scripts/
 *.hdf5
 *.xml
-cmdline_old.py
-eida_cmdline.py
 notebooks/johannas_chaos/*
-Readme_private.md
+
 
 
 __pycache__
