@@ -34,6 +34,7 @@ except FileNotFoundError:
 
 from obspy.core import UTCDateTime as UTC
 from obspy import Inventory
+from obspy.clients.fdsn.client import FDSNNoDataException 
 
 import plotly.graph_objects as go
 
@@ -520,13 +521,15 @@ class NSCProcessor():
                         2*self.processing_params.overlap)
             self.logger.debug("%s - %s" % (starttime, endtime))
             
-            st = self.dataclient.get_waveforms(starttime=starttime, endtime=endtime, 
-                                    **self.nsc_as_dict())
+            
             try:
+                st = self.dataclient.get_waveforms(starttime=starttime, 
+                                                   endtime=endtime, 
+                                    **self.nsc_as_dict())
                 tr = preprocessing(st, inv, starttime, endtime, 
                         self.processing_params.sampling_rate)
             # No data in trace:
-            except IndexError:
+            except (IndexError, FDSNNoDataException):
                 # self.logger.debug("No data for %s" % UTC((starttime + overlap).date))
                 self.logger.info("No data for %s" % starttime)
                 starttime = starttime + self.processing_params.proclen_seconds
