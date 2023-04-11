@@ -167,12 +167,8 @@ class GenericProcessor():
         if preprocessing is None:
             preprocessing = util.process_stream
         self.preprocessing = preprocessing
-        
-        if "procparams" in procparams:
-            self.proc_params = procparams['procparams']
-            self.proc_params.update(**procparams)
-        else:
-            self.proc_params = ProcessingParameters(**procparams)
+
+        self.proc_params = ProcessingParameters(**procparams)
 
         ## Derived attributes:
         self.win_per_proclen = int(self.proc_params.proclen_seconds / 
@@ -350,8 +346,10 @@ class ProcessingParameters():
         for k, v in default_processing_params.items():
             if k in kwargs:
                 self.__setattr__(k, kwargs[k])
+                print(k, "different from default")
             else:
                 self.__setattr__(k, v)
+                print("using default for", k)
 
     def __repr__(self) -> str:
         """
