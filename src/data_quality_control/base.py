@@ -529,9 +529,9 @@ class NSCProcessor():
                 tr = preprocessing(st, inv, starttime, endtime, 
                         self.processing_params.sampling_rate)
             # No data in trace:
-            except (IndexError, FDSNNoDataException):
+            except Exception:#(IndexError, FDSNNoDataException):
                 # self.logger.debug("No data for %s" % UTC((starttime + overlap).date))
-                self.logger.info("No data for %s" % starttime)
+                self.logger.exception("No data for %s" % starttime)
                 starttime = starttime + self.processing_params.proclen_seconds
                 
                 # Shape of output is determined by seismic data properties like
