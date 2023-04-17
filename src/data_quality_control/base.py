@@ -451,9 +451,14 @@ class NSCProcessor():
         if isinstance(self.invclient, Inventory):
             return self.invclient
         else:
-            return self.invclient.get_stations(
-                starttime=starttime, endtime=endtime, level='response',
-                **self.nsc_as_dict())
+            try:
+                inv = self.invclient.get_stations(
+                    starttime=starttime, endtime=endtime, level='response',
+                    **self.nsc_as_dict())
+            except Exception:
+                inv = None
+                self.logger.exception("No inventory found!")
+            return inv
 
 
 
@@ -862,6 +867,11 @@ class BaseProcessedData():
         self.logger.debug("Shapes before trim_nan: {}, {}".format(
                 self.amplitudes.shape, self.psds.shape))
 
+
+        if np.all(np.isnan(self.amplitudes)):
+            self.logger.info("all data is Nan")
+            return
+
         n = 0
         while len(self.amplitudes) > 0:
             if np.all(np.isnan(self.amplitudes[0])):
@@ -882,6 +892,8 @@ class BaseProcessedData():
             self.psds = self.psds[:-m,:]
 
         # Check if any data is left
+        ## This part causes problems: if a whole file indeed contains Nans only
+        ## this confuses the entire analysis
         if len(self.amplitudes) == 0:
             self.amplitudes = None
             self.psds = None
@@ -1182,9 +1194,11 @@ class BaseProcessedData():
             if different.
 
         """
+
         if not np.all(np.isclose(self.frequency_axis, new.frequency_axis)):
-            self.logger.error("Frequency axis are different!")
-            raise IOError("Frequency axis are different!")
+            if not self.frequency_axis.shape == new.frequency_axis.shape:
+                self.logger.error("Frequency axis are different!")
+                raise IOError("Frequency axis are different!")
         else:
             return True
 
