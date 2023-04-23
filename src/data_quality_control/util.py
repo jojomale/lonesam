@@ -508,7 +508,7 @@ def next_month(stime):
     Return first day of month after ``stime`` as
     ``UTCDateTime``. Respects turn of year.
     """
-    quot, rem = np.divmod(stime.month + 1, 12)
+    quot, rem = np.divmod(stime.month + 1, 13)
     if rem==0:
         rem = 1
     stime = UTC("{:d}-{:02d}-01".format(stime.year+quot, rem)) 
