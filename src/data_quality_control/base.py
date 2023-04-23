@@ -1269,7 +1269,7 @@ class BaseProcessedData():
 
 
 
-    def plot_amplitudes(self, ax=None):
+    def plot_amplitudes(self, ax=None, **imshow_kwargs):
         """
         Plot amplitude matrix using matplotlib.
 
@@ -1298,7 +1298,7 @@ class BaseProcessedData():
 
         dateax, timeax = self._get_date_and_time_axis_for_amplitude_matrix()
 
-        im = ax.imshow(A, aspect="auto")
+        im = ax.imshow(A, aspect="auto", **imshow_kwargs)
         ax.set_title("Amplitude data matrix");
         ax.set_xlabel('date')
         xticks = np.arange(nd)
