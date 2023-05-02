@@ -83,8 +83,8 @@ scipts.
 API
 --------
 For starting points, take a look at:
-- station_quality_control/trunk/data_quality_control/scripts
-- station_quality_control/trunk/data_quality_control/notebooks/usage_demo.ipynb
+- https://github.com/jojomale/lonesam/tree/master/scripts
+- https://github.com/jojomale/lonesam/tree/master/notebooks
 
 
 CLI

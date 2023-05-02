@@ -99,7 +99,6 @@ If you don't use conda use only the last 3 commands.
 
 
 
-
 Documentation
 ====================
 https://lonesam.readthedocs.io/en/latest/index.html
@@ -109,6 +108,7 @@ In order to re-create the documentation from the repository
 you need:
 
 - `sphinx <https://www.sphinx-doc.org>`_
+- `sphinx-argparse <https://sphinx-argparse.readthedocs.io>`_
 - `nbsphinx </https://nbsphinx.readthedocs.io>`_
 - `nbsphinx-link <https://nbsphinx-link.readthedocs.io>`_
 - `jupyter-lab <https://jupyterlab.readthedocs.io>`_ or `jupyter <https://jupyter-notebook.readthedocs.io>`_
@@ -134,9 +134,13 @@ scipts.
 
 API
 --------
-For starting points, take a look at:
-- station_quality_control/trunk/data_quality_control/scripts
-- station_quality_control/trunk/data_quality_control/notebooks/usage_demo.ipynb
+For starting points, take a look at the :ref:`submodules`.
+
+Examples of scripts and notebooks are at:
+
+- https://github.com/jojomale/lonesam/tree/master/scripts
+- https://github.com/jojomale/lonesam/tree/master/notebooks
+
 
 
 CLI
@@ -145,50 +149,13 @@ General use:
 
 .. code-block:: console 
 
-  dataqc [-h] {process,plot,available,avail,windfilter,wind} ...
+  dataqc [-h] subcommand [options] args
 
 
-Use `-h` option on subcommands for details on arguments. E.g.
-`dataqc avail -h`.
+Use ``-h`` option on subcommands for details on arguments. E.g.
+``dataqc avail -h``.
 
-
-Compute mean amplitudes and power spectral
-densities from raw seismic data and store as 
-HDF5-files:
-
-.. code-block:: console 
-
-  dataqc process [-h] [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--logfile LOGFILE] [--append_logfile] [-o OUTDIR]
-                      [--fileunit {year,month,day,hour}] [--overlap OVERLAP] [--proclen PROCLEN] [--winlen-in-s WINLEN_IN_S]
-                      [--nperseg NPERSEG] [--amplitude-frequencies AMPLITUDE_FREQUENCIES AMPLITUDE_FREQUENCIES]
-                      [--sampling_rate SAMPLING_RATE]
-                      nslc_code {eida-routing,iris-federator} sds_root starttime endtime
-
-
-View available HDF5-data in a directory:
-.. code-block:: console 
-
-  dataqc available [-h] [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--logfile LOGFILE] [--append_logfile] [--fileunit FILEUNIT] nslc_code datadir
-
-
-Plot results:
-
-.. code-block:: console 
-
-  dataqc plot [-h] [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--logfile LOGFILE] [--append_logfile] [--fileunit {year,month,day,hour}] [-o FIGDIR] [-s] [-l [TIMELIST]
-                  | -r TIMERANGE TIMERANGE]
-                  nslc_code datadir
-
-
-Filter a list of observables for times with specific values.
-Observations are interpolated to given time increment (should
-be set to the time window used for spectral computations)
-
-.. code-block:: console 
-
-  dataqc windfilter [-h] fname stime etime delta minspeed [maxspeed] [out]
-
-
+For details on the subcommands, go to :doc:`cmdline`.
 
 
 

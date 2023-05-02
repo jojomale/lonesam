@@ -6,6 +6,9 @@ data\_quality\_control package
    :undoc-members:
    :show-inheritance:
 
+
+.. _submodules:
+
 Submodules
 ----------
 
