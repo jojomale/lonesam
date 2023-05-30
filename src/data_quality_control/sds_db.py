@@ -24,11 +24,16 @@ class SDSProcessor(base.GenericProcessor):
             inventory_or_routing_type,
             sds_root, sds_dict={}, 
             outdir='.', preprocessing=None, 
-            fileunit="year", **procparams):
+            fileunit="year", 
+            FMTSTR = None,
+            **procparams):
 
         #location = ""
         dataclient = Client(sds_root, **sds_dict)
         invclient = self._set_inventory(inventory_or_routing_type)
+
+        if FMTSTR is not None:
+            dataclient.FMTSTR = FMTSTR
 
         super().__init__(nslc_code,
                 dataclient, invclient, 
