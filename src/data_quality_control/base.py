@@ -1586,7 +1586,7 @@ class ProcessedDataFileManager():
         elif self.fileunit == "month":
             stime = UTC(starttime.year, starttime.month, 1, 0,0,0)
             etime = (util.get_end_of_month(stime) + 24*3600)
-        elif self.starttime == "day":
+        elif self.fileunit == "day":
             stime = UTC(starttime.year, starttime.month, starttime.day,
                         0, 0, 0)
             etime = stime + 3600*24# - self.proc_params.proclen_seconds
