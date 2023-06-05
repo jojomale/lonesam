@@ -611,10 +611,10 @@ def iter_timeinc(startdate, enddate, inc, timelevel):
             _enddate = enddate
             module_logger.debug("Reset enddate to %s" % _enddate)
         # Process 1 year (or less)
-
+        yield _startdate, _enddate
         _startdate = _startdate + inc
         _enddate = _startdate + inc
-
+        
 
 def iter_days(starttime, endtime):
     """
